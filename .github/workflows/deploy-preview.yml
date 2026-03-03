@@ -1,0 +1,35 @@
+name: Deploy Branch Preview
+
+on:
+  push:
+    branches-ignore:
+      - main
+      - gh-pages
+
+jobs:
+  deploy-preview:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Sanitize branch name for directory
+        id: branch
+        run: |
+          SAFE=$(echo "${GITHUB_REF_NAME}" | tr '/' '-')
+          echo "safe=${SAFE}" >> $GITHUB_OUTPUT
+          echo "raw=${GITHUB_REF_NAME}" >> $GITHUB_OUTPUT
+
+      - name: Deploy preview to gh-pages/preview/{branch}
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: .
+          destination_dir: preview/${{ steps.branch.outputs.safe }}
+          keep_files: true
+          exclude_assets: '.github,CLAUDE.md,sector_defense_gdd.md,sector_defense_sound.md,README.md'
+
+      - name: Comment preview URL on commit
+        run: |
+          echo "Preview deployed to: https://wands82sg-blip.github.io/Sector-Defense/preview/${{ steps.branch.outputs.safe }}/"

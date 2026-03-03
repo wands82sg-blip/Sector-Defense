@@ -1,0 +1,34 @@
+name: Cleanup Branch Preview
+
+on:
+  pull_request:
+    types:
+      - closed
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+
+      - name: Sanitize branch name
+        id: branch
+        run: |
+          SAFE=$(echo "${{ github.head_ref }}" | tr '/' '-')
+          echo "safe=${SAFE}" >> $GITHUB_OUTPUT
+
+      - name: Remove preview folder
+        run: |
+          if [ -d "preview/${{ steps.branch.outputs.safe }}" ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git rm -rf "preview/${{ steps.branch.outputs.safe }}"
+            git commit -m "chore: remove preview for ${{ github.head_ref }}"
+            git push origin gh-pages
+          else
+            echo "No preview folder found, skipping."
+          fi
