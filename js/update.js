@@ -85,6 +85,7 @@ function update(dt) {
     laneFreeze.timer -= dt;
     if (laneFreeze.timer <= 0) {
       laneFreeze.active = false;
+      laneFreeze.waitingForParryEntry = false;
       laneFreeze.lane = -1;
     }
   }
@@ -93,8 +94,18 @@ function update(dt) {
   enemies.forEach(e => {
     if (!e.alive) return;
 
-    // Freeze enemies in the tutorial lane
-    const frozen = laneFreeze.active && e.lane === laneFreeze.lane;
+    // Detect first enemy entering the parry window — triggers full-game freeze
+    if (laneFreeze.waitingForParryEntry && e.lane === laneFreeze.lane) {
+      const parryZoneTop = getCannonY() - dims.h * PARRY_ZONE_HEIGHT_FACTOR;
+      if (e.y + e.height / 2 > parryZoneTop) {
+        laneFreeze.waitingForParryEntry = false;
+        laneFreeze.active = true;
+        laneFreeze.timer = laneFreeze.maxTime;
+      }
+    }
+
+    // Freeze ALL enemies while tutorial freeze is active
+    const frozen = laneFreeze.active;
     if (!frozen) {
       e.y += e.speed * adt;
     }
@@ -115,12 +126,12 @@ function update(dt) {
         flashEffect.alpha = 0.5;
         flashEffect.color = '#ff2222';
 
-        // FIRST DEATH TUTORIAL: freeze this lane so player can learn parry
+        // FIRST DEATH TUTORIAL: wait for an enemy to enter the parry window,
+        // then freeze the entire game so the player has time to react.
         if (firstDeathEver) {
           firstDeathEver = false;
-          laneFreeze.active = true;
           laneFreeze.lane = e.lane;
-          laneFreeze.timer = laneFreeze.maxTime;
+          laneFreeze.waitingForParryEntry = true;
         }
 
         // Destruction particles
@@ -210,6 +221,7 @@ function update(dt) {
         } else {
           // Hit but not dead
           e.hitFlash = 1;
+          audio.play('hit_weak');
           screenShake.intensity = 3;
           for (let i = 0; i < 5; i++) {
             particles.push({

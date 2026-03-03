@@ -178,6 +178,19 @@ class AudioEngine {
         crackle.start(now + 0.05); crackle.stop(now + 0.5);
         break;
       }
+      case 'hit_weak': {
+        // First hit on a multi-HP enemy — lighter than the kill sound
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(520, now);
+        osc.frequency.exponentialRampToValueAtTime(180, now + 0.13);
+        gain.gain.setValueAtTime(0.28, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.13);
+        osc.connect(gain).connect(ctx.destination);
+        osc.start(now); osc.stop(now + 0.13);
+        break;
+      }
       case 'shockwave_hit': {
         // Individual enemy popping in the shockwave cascade
         const pop = ctx.createOscillator();
