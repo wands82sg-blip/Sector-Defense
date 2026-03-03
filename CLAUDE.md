@@ -4,7 +4,7 @@ This file gives Claude context about the Sector Defense project so it can assist
 
 ## Project Summary
 
-Sector Defense is a mobile arcade defense game built for iOS/Android (19.5:9 aspect ratio). It is a single-file web app (HTML/JS) using the Web Audio API with no external dependencies or build system. All audio is procedurally synthesized — no sample files.
+Sector Defense is a mobile arcade defense game built for iOS/Android (19.5:9 aspect ratio). It is a web app (HTML/JS) using the Web Audio API with no external dependencies or build system. All audio is procedurally synthesized — no sample files.
 
 **Full specs:**
 - [Core Gameplay GDD](sector_defense_gdd.md)
@@ -14,11 +14,38 @@ Sector Defense is a mobile arcade defense game built for iOS/Android (19.5:9 asp
 
 ## Architecture
 
-- Single HTML file with embedded JS (no framework, no build step)
-- **`AudioEngine` class** wraps Web Audio API; `AudioContext` initializes on first user tap (browser autoplay policy)
+- HTML + CSS in `index.html`; JS split across 8 files in `js/` (no framework, no build step, no ES modules)
+- Plain `<script>` tags loaded in dependency order — all globals shared via top-level declarations
+- **`AudioEngine` class** (`js/audio.js`) wraps Web Audio API; `AudioContext` initializes on first user tap (browser autoplay policy)
 - Disposable oscillator + gain nodes per sound event (no persistent nodes)
 - Game time tracked via `adt` (affected by slow-motion); real-time UI uses wall-clock time
 - 19.5:9 layout with 4 equal vertical sectors, cannons at 88% screen height
+
+### File Structure
+
+```
+index.html          → HTML + CSS + <script> tags (no inline JS)
+js/
+├── config.js       → Constants, canvas setup, resize(), layout helpers
+├── audio.js        → AudioEngine class + singleton instance
+├── state.js        → All mutable game state, entity arrays, initSectors()
+├── waves.js        → Wave system, enemy spawning, difficulty scaling
+├── input.js        → handleTap(), canvas mouse/touch listeners
+├── update.js       → update(dt) — physics, collisions, scoring
+├── renderer.js     → draw() — all canvas rendering
+└── main.js         → startGame(), gameOver(), gameLoop(), button listeners, boot
+```
+
+### Script Load Order (matters — each file can reference globals from earlier files)
+
+1. `config.js` → no deps
+2. `audio.js` → no deps
+3. `state.js` → uses constants from config.js
+4. `waves.js` → uses config + state
+5. `input.js` → uses config + audio + state + waves
+6. `update.js` → uses config + audio + state + waves
+7. `renderer.js` → uses config + state (reads state to draw)
+8. `main.js` → uses everything (coordinates startup, loop, game over)
 
 ---
 
