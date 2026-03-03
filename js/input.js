@@ -102,9 +102,10 @@ function handleTap(clientX, clientY) {
         sector.rebuildFlash = 1;
         audio.play('rebuild');
 
-        // Cancel lane freeze if active (tutorial complete)
-        if (laneFreeze.active && laneFreeze.lane === lane) {
+        // Cancel tutorial freeze if active (success or waiting state)
+        if (laneFreeze.lane === lane) {
           laneFreeze.active = false;
+          laneFreeze.waitingForParryEntry = false;
           laneFreeze.lane = -1;
         }
 
@@ -153,6 +154,12 @@ function handleTap(clientX, clientY) {
     if (!parried) {
       // Failed parry / no enemy in zone - just show shield attempt
       sector.shieldFlash = 0.5;
+      // Also cancel tutorial freeze on a missed tap so game doesn't stay locked
+      if (laneFreeze.lane === lane) {
+        laneFreeze.active = false;
+        laneFreeze.waitingForParryEntry = false;
+        laneFreeze.lane = -1;
+      }
     }
   }
 }

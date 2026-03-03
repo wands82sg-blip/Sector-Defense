@@ -15,7 +15,7 @@ let flashEffect = { active: false, alpha: 0, color: '#fff' };
 
 // First-death tutorial system
 let firstDeathEver = true; // tracks across the entire session (not reset per game)
-let laneFreeze = { active: false, lane: -1, timer: 0, maxTime: 1.8 };
+let laneFreeze = { active: false, lane: -1, timer: 0, maxTime: 1.8, waitingForParryEntry: false };
 
 // Entity arrays
 let sectors = [];
