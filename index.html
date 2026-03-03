@@ -1,0 +1,1595 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>SECTOR DEFENSE</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  
+  html, body {
+    width: 100%; height: 100%;
+    overflow: hidden;
+    background: #000;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+  }
+
+  #gameContainer {
+    position: relative;
+    margin: 0 auto;
+    overflow: hidden;
+    background: #0a0a12;
+  }
+
+  canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+
+  #startScreen, #gameOverScreen {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: rgba(5, 5, 15, 0.95);
+    z-index: 10;
+    transition: opacity 0.5s;
+  }
+
+  #gameOverScreen { display: none; }
+
+  .title {
+    font-family: 'Orbitron', sans-serif;
+    font-weight: 900;
+    font-size: 28px;
+    color: #ff3a3a;
+    text-transform: uppercase;
+    letter-spacing: 6px;
+    text-shadow: 0 0 30px rgba(255, 58, 58, 0.6), 0 0 60px rgba(255, 58, 58, 0.3);
+    margin-bottom: 10px;
+  }
+
+  .subtitle {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 12px;
+    color: #667;
+    letter-spacing: 4px;
+    margin-bottom: 40px;
+  }
+
+  .instructions {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    color: #99a;
+    text-align: center;
+    line-height: 2;
+    margin-bottom: 40px;
+    max-width: 280px;
+  }
+
+  .instructions span { color: #ff6a4a; }
+
+  .btn {
+    font-family: 'Orbitron', sans-serif;
+    font-weight: 700;
+    font-size: 14px;
+    color: #fff;
+    background: transparent;
+    border: 2px solid #ff3a3a;
+    padding: 14px 40px;
+    letter-spacing: 4px;
+    cursor: pointer;
+    text-transform: uppercase;
+    transition: all 0.3s;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .btn:hover, .btn:active {
+    background: #ff3a3a;
+    box-shadow: 0 0 30px rgba(255, 58, 58, 0.5);
+  }
+
+  .score-display {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 48px;
+    color: #ff3a3a;
+    margin: 20px 0;
+    text-shadow: 0 0 30px rgba(255, 58, 58, 0.5);
+  }
+
+  .final-label {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 12px;
+    color: #667;
+    letter-spacing: 4px;
+    margin-bottom: 5px;
+  }
+
+  .stats {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    color: #88a;
+    margin-bottom: 30px;
+  }
+</style>
+</head>
+<body>
+
+<div id="gameContainer">
+  <canvas id="gameCanvas"></canvas>
+  
+  <div id="startScreen">
+    <div class="title">SECTOR</div>
+    <div class="title" style="color:#fff; text-shadow: 0 0 30px rgba(255,255,255,0.3);">DEFENSE</div>
+    <div class="subtitle">LAST LINE OF DEFENSE</div>
+    <div class="instructions">
+      <span>TAP</span> a sector to fire cannon<br>
+      <span>MANAGE</span> limited ammo wisely<br>
+      <span>PARRY</span> when cannon destroyed<br>
+      <span>SHOCKWAVE</span> clears lane on parry<br>
+      <span>SURVIVE</span> the onslaught<br>
+    </div>
+    <button class="btn" id="startBtn">ENGAGE</button>
+  </div>
+
+  <div id="gameOverScreen">
+    <div class="title" style="font-size:22px;">BREACH</div>
+    <div class="subtitle">DEFENSE COMPROMISED</div>
+    <div class="final-label">SCORE</div>
+    <div class="score-display" id="finalScore">0</div>
+    <div class="stats" id="finalStats"></div>
+    <button class="btn" id="restartBtn">RETRY</button>
+  </div>
+</div>
+
+<script>
+// ============ AUDIO ENGINE (Web Audio API) ============
+class AudioEngine {
+  constructor() {
+    this.ctx = null;
+    this.initialized = false;
+  }
+
+  init() {
+    if (this.initialized) return;
+    this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+    this.initialized = true;
+  }
+
+  play(type) {
+    if (!this.initialized) return;
+    const ctx = this.ctx;
+    const now = ctx.currentTime;
+
+    switch(type) {
+      case 'shoot': {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        const noise = ctx.createOscillator();
+        const noiseGain = ctx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(200, now);
+        osc.frequency.exponentialRampToValueAtTime(60, now + 0.15);
+        gain.gain.setValueAtTime(0.3, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+        noise.type = 'square';
+        noise.frequency.setValueAtTime(80, now);
+        noiseGain.gain.setValueAtTime(0.15, now);
+        noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+        osc.connect(gain).connect(ctx.destination);
+        noise.connect(noiseGain).connect(ctx.destination);
+        osc.start(now); osc.stop(now + 0.15);
+        noise.start(now); noise.stop(now + 0.08);
+        break;
+      }
+      case 'hit': {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        const osc2 = ctx.createOscillator();
+        const gain2 = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(800, now);
+        osc.frequency.exponentialRampToValueAtTime(200, now + 0.2);
+        gain.gain.setValueAtTime(0.4, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+        osc2.type = 'square';
+        osc2.frequency.setValueAtTime(120, now);
+        osc2.frequency.exponentialRampToValueAtTime(40, now + 0.3);
+        gain2.gain.setValueAtTime(0.25, now);
+        gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+        osc.connect(gain).connect(ctx.destination);
+        osc2.connect(gain2).connect(ctx.destination);
+        osc.start(now); osc.stop(now + 0.2);
+        osc2.start(now); osc2.stop(now + 0.3);
+        break;
+      }
+      case 'parry': {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(300, now);
+        osc.frequency.linearRampToValueAtTime(900, now + 0.1);
+        osc.frequency.linearRampToValueAtTime(600, now + 0.3);
+        gain.gain.setValueAtTime(0.35, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+        osc.connect(gain).connect(ctx.destination);
+        osc.start(now); osc.stop(now + 0.4);
+        // shield clang
+        const clang = ctx.createOscillator();
+        const cGain = ctx.createGain();
+        clang.type = 'square';
+        clang.frequency.setValueAtTime(1200, now);
+        clang.frequency.exponentialRampToValueAtTime(100, now + 0.15);
+        cGain.gain.setValueAtTime(0.2, now);
+        cGain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+        clang.connect(cGain).connect(ctx.destination);
+        clang.start(now); clang.stop(now + 0.15);
+        break;
+      }
+      case 'destroy': {
+        for (let i = 0; i < 3; i++) {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(150 - i * 30, now + i * 0.1);
+          osc.frequency.exponentialRampToValueAtTime(20, now + i * 0.1 + 0.3);
+          gain.gain.setValueAtTime(0.3, now + i * 0.1);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.1 + 0.3);
+          osc.connect(gain).connect(ctx.destination);
+          osc.start(now + i * 0.1); osc.stop(now + i * 0.1 + 0.3);
+        }
+        break;
+      }
+      case 'rebuild': {
+        [400, 500, 600, 800].forEach((f, i) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(f, now + i * 0.08);
+          gain.gain.setValueAtTime(0.2, now + i * 0.08);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.08 + 0.15);
+          osc.connect(gain).connect(ctx.destination);
+          osc.start(now + i * 0.08); osc.stop(now + i * 0.08 + 0.15);
+        });
+        break;
+      }
+      case 'empty': {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(100, now);
+        gain.gain.setValueAtTime(0.15, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+        osc.connect(gain).connect(ctx.destination);
+        osc.start(now); osc.stop(now + 0.1);
+        break;
+      }
+      case 'gameover': {
+        [200, 150, 100, 60].forEach((f, i) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(f, now + i * 0.2);
+          osc.frequency.exponentialRampToValueAtTime(f * 0.5, now + i * 0.2 + 0.3);
+          gain.gain.setValueAtTime(0.3, now + i * 0.2);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.2 + 0.4);
+          osc.connect(gain).connect(ctx.destination);
+          osc.start(now + i * 0.2); osc.stop(now + i * 0.2 + 0.4);
+        });
+        break;
+      }
+      case 'combo': {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(600, now);
+        osc.frequency.linearRampToValueAtTime(1200, now + 0.15);
+        gain.gain.setValueAtTime(0.2, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+        osc.connect(gain).connect(ctx.destination);
+        osc.start(now); osc.stop(now + 0.2);
+        break;
+      }
+      case 'shockwave': {
+        // Deep bass sweep rising in pitch
+        const bass = ctx.createOscillator();
+        const bassGain = ctx.createGain();
+        bass.type = 'sine';
+        bass.frequency.setValueAtTime(40, now);
+        bass.frequency.exponentialRampToValueAtTime(200, now + 0.6);
+        bassGain.gain.setValueAtTime(0.35, now);
+        bassGain.gain.exponentialRampToValueAtTime(0.001, now + 0.8);
+        bass.connect(bassGain).connect(ctx.destination);
+        bass.start(now); bass.stop(now + 0.8);
+        // Layered whoosh
+        const whoosh = ctx.createOscillator();
+        const whooshGain = ctx.createGain();
+        whoosh.type = 'sawtooth';
+        whoosh.frequency.setValueAtTime(80, now);
+        whoosh.frequency.exponentialRampToValueAtTime(400, now + 0.5);
+        whooshGain.gain.setValueAtTime(0.15, now);
+        whooshGain.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
+        whoosh.connect(whooshGain).connect(ctx.destination);
+        whoosh.start(now); whoosh.stop(now + 0.6);
+        // Crackle texture
+        const crackle = ctx.createOscillator();
+        const crackleGain = ctx.createGain();
+        crackle.type = 'square';
+        crackle.frequency.setValueAtTime(60, now + 0.05);
+        crackle.frequency.exponentialRampToValueAtTime(300, now + 0.4);
+        crackleGain.gain.setValueAtTime(0.08, now + 0.05);
+        crackleGain.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+        crackle.connect(crackleGain).connect(ctx.destination);
+        crackle.start(now + 0.05); crackle.stop(now + 0.5);
+        break;
+      }
+      case 'shockwave_hit': {
+        // Individual enemy popping in the shockwave cascade
+        const pop = ctx.createOscillator();
+        const popGain = ctx.createGain();
+        pop.type = 'sine';
+        pop.frequency.setValueAtTime(500 + Math.random() * 400, now);
+        pop.frequency.exponentialRampToValueAtTime(100, now + 0.12);
+        popGain.gain.setValueAtTime(0.2, now);
+        popGain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+        pop.connect(popGain).connect(ctx.destination);
+        pop.start(now); pop.stop(now + 0.15);
+        break;
+      }
+    }
+  }
+}
+
+// ============ GAME ============
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const container = document.getElementById('gameContainer');
+const audio = new AudioEngine();
+
+// Sizing for 19.5:9 aspect ratio
+function resize() {
+  const ratio = 19.5 / 9;
+  let w = window.innerWidth;
+  let h = window.innerHeight;
+  
+  if (h / w > ratio) {
+    h = w * ratio;
+  } else {
+    w = h / ratio;
+  }
+  
+  container.style.width = Math.floor(w) + 'px';
+  container.style.height = Math.floor(h) + 'px';
+  
+  const scale = window.devicePixelRatio || 1;
+  canvas.width = Math.floor(w * scale);
+  canvas.height = Math.floor(h * scale);
+  ctx.scale(scale, scale);
+  
+  return { w: Math.floor(w), h: Math.floor(h) };
+}
+
+let dims = resize();
+window.addEventListener('resize', () => { dims = resize(); });
+
+// Game state
+const SECTOR_COUNT = 4;
+const INITIAL_AMMO = 5;
+const MAX_AMMO_CAP = 8;
+const BULLET_SPEED_FACTOR = 0.9; // relative to height per second
+const PARRY_WINDOW = 0.6; // seconds
+const PARRY_ZONE_HEIGHT_FACTOR = 0.18;
+
+let gameState = 'menu'; // menu, playing, gameover
+let score = 0;
+let wave = 0;
+let combo = 0;
+let maxCombo = 0;
+let totalKills = 0;
+let totalParries = 0;
+let totalShockwaveKills = 0;
+let screenShake = { x: 0, y: 0, intensity: 0, decay: 0.9 };
+let slowMo = { active: false, factor: 1, timer: 0 };
+let flashEffect = { active: false, alpha: 0, color: '#fff' };
+
+// First-death tutorial system
+let firstDeathEver = true; // tracks across the entire session (not reset per game)
+let laneFreeze = { active: false, lane: -1, timer: 0, maxTime: 1.8 };
+
+// Sectors
+let sectors = [];
+// Bullets
+let bullets = [];
+// Enemies
+let enemies = [];
+// Particles
+let particles = [];
+// Floating texts
+let floatingTexts = [];
+// Shockwaves
+let shockwaves = [];
+
+function initSectors() {
+  sectors = [];
+  for (let i = 0; i < SECTOR_COUNT; i++) {
+    sectors.push({
+      index: i,
+      ammo: INITIAL_AMMO,
+      maxAmmo: MAX_AMMO_CAP,
+      alive: true,
+      parryActive: false,
+      parryTimer: 0,
+      shieldFlash: 0,
+      cannonRecoil: 0,
+      destroyed: false,
+      rebuildFlash: 0,
+      muzzleFlash: 0
+    });
+  }
+}
+
+function getSectorX(i) {
+  const sw = dims.w / SECTOR_COUNT;
+  return sw * i + sw / 2;
+}
+
+function getSectorWidth() {
+  return dims.w / SECTOR_COUNT;
+}
+
+function getCannonY() {
+  return dims.h * 0.88;
+}
+
+// Spawn enemy
+let spawnTimer = 0;
+let spawnInterval = 2.0;
+let enemySpeed = 0;
+let pressureLanes = []; // lanes that get hammered in early waves
+let waveSpawnQueue = []; // scripted spawn queue for early waves
+
+function pickLane() {
+  // Early waves: use pressure lanes for uneven distribution
+  if (wave <= 4 && pressureLanes.length > 0) {
+    // 70% chance to spawn in a pressure lane
+    if (Math.random() < 0.7) {
+      return pressureLanes[Math.floor(Math.random() * pressureLanes.length)];
+    }
+  }
+  return Math.floor(Math.random() * SECTOR_COUNT);
+}
+
+function buildWaveSpawnQueue() {
+  waveSpawnQueue = [];
+  
+  if (wave === 1) {
+    // Wave 1: Pick 2 adjacent lanes to pressure hard - 6 enemies, mostly in 2 lanes
+    const startLane = Math.floor(Math.random() * 3); // 0, 1, or 2
+    pressureLanes = [startLane, startLane + 1];
+    // Queue: pressure, pressure, other, pressure, pressure, pressure
+    waveSpawnQueue = [
+      pressureLanes[0], pressureLanes[1], 
+      (startLane + 2) % SECTOR_COUNT,
+      pressureLanes[0], pressureLanes[1], pressureLanes[0]
+    ];
+  } else if (wave === 2) {
+    // Wave 2: Shift pressure to different lanes, slightly more enemies
+    // Pick lanes that WEREN'T pressured in wave 1 + one overlap
+    const newPrimary = (pressureLanes[1] + 1) % SECTOR_COUNT;
+    const newSecondary = (pressureLanes[1] + 2) % SECTOR_COUNT;
+    pressureLanes = [newPrimary, newSecondary];
+    // 8 enemies, heavily concentrated to force ammo depletion
+    waveSpawnQueue = [
+      newPrimary, newPrimary, newSecondary, newPrimary,
+      newSecondary, newPrimary, newSecondary, newPrimary
+    ];
+  } else if (wave === 3) {
+    // Wave 3: THE DESIGNED OVERWHELM - one lane gets slammed to force first cannon death
+    // Pick the lane with lowest ammo to guarantee the death
+    let lowestAmmoLane = 0;
+    let lowestAmmo = Infinity;
+    sectors.forEach((s, i) => {
+      if (s.alive && s.ammo < lowestAmmo) {
+        lowestAmmo = s.ammo;
+        lowestAmmoLane = i;
+      }
+    });
+    pressureLanes = [lowestAmmoLane];
+    const otherLanes = [0,1,2,3].filter(l => l !== lowestAmmoLane);
+    // Key design: after the ammo-draining burst (first 3-4 in target lane),
+    // insert OTHER lane enemies as spacers before the kill shot + parry target.
+    // This guarantees the parry target arrives with a visible gap.
+    waveSpawnQueue = [
+      // Phase 1: Drain ammo (these will use up remaining bullets)
+      lowestAmmoLane, lowestAmmoLane, lowestAmmoLane,
+      // Phase 2: Spacers in other lanes (builds tension, gives cannon-kill time)
+      otherLanes[0], otherLanes[1],
+      // Phase 3: The kill shot - cannon has no ammo, this destroys it
+      lowestAmmoLane,
+      // Phase 4: MORE spacers - this is the critical gap for parry learning
+      otherLanes[2], otherLanes[0],
+      // Phase 5: The parry target - arrives well after cannon death
+      lowestAmmoLane
+    ];
+  } else {
+    // Wave 4+: no scripted queue, use dynamic lane pressure
+    pressureLanes = [];
+    waveSpawnQueue = [];
+  }
+}
+
+function spawnEnemy(forceLane) {
+  const lane = forceLane !== undefined ? forceLane : pickLane();
+  const sw = getSectorWidth();
+  const speed = enemySpeed * dims.h;
+  
+  // Speed variance: some enemies slightly faster/slower for visual interest
+  const speedVariance = 0.85 + Math.random() * 0.3;
+  
+  enemies.push({
+    lane: lane,
+    x: getSectorX(lane),
+    y: -30,
+    width: sw * 0.45,
+    height: sw * 0.35,
+    speed: speed * speedVariance,
+    alive: true,
+    hitFlash: 0,
+    hp: wave >= 6 ? (Math.random() < 0.15 + wave * 0.02 ? 2 : 1) : 1,
+    maxHp: 1
+  });
+  
+  if (enemies[enemies.length-1].hp === 2) {
+    enemies[enemies.length-1].maxHp = 2;
+  }
+}
+
+function startGame() {
+  score = 0;
+  wave = 0;
+  combo = 0;
+  maxCombo = 0;
+  totalKills = 0;
+  totalParries = 0;
+  totalShockwaveKills = 0;
+  bullets = [];
+  enemies = [];
+  particles = [];
+  floatingTexts = [];
+  shockwaves = [];
+  spawnTimer = 0;
+  spawnInterval = 1.4;
+  enemySpeed = 0.15;
+  pressureLanes = [];
+  waveSpawnQueue = [];
+  screenShake = { x: 0, y: 0, intensity: 0, decay: 0.9 };
+  slowMo = { active: false, factor: 1, timer: 0 };
+  flashEffect = { active: false, alpha: 0, color: '#fff' };
+  laneFreeze = { active: false, lane: -1, timer: 0, maxTime: 1.8 };
+  initSectors();
+  nextWave();
+  gameState = 'playing';
+}
+
+let waveEnemies = 0;
+let waveEnemiesSpawned = 0;
+
+function nextWave() {
+  wave++;
+  waveEnemiesSpawned = 0;
+  
+  // Wave sizing: starts aggressive, scales steadily
+  if (wave <= 3) {
+    waveEnemies = 4 + wave * 2; // 6, 8, 10
+  } else {
+    waveEnemies = 8 + wave * 2; // 16, 18, 20...
+  }
+  
+  // Spawn interval: tight from the start, gets relentless
+  spawnInterval = Math.max(0.35, 1.4 - wave * 0.1);
+  
+  // Enemy speed: noticeable from wave 1, dangerous by wave 6
+  enemySpeed = Math.min(0.45, 0.15 + wave * 0.022);
+  
+  // Build scripted spawn queue for early waves
+  buildWaveSpawnQueue();
+  
+  // Ammo economy: stingy early, gradually more generous
+  // Wave 1-3: +1 ammo per wave (forces scarcity)
+  // Wave 4-6: +2 ammo per wave (slight relief)
+  // Wave 7+: +2-3 ammo per wave (scaled to enemy count)
+  sectors.forEach(s => {
+    if (s.alive) {
+      let refill;
+      if (wave <= 3) {
+        refill = 1;
+      } else if (wave <= 6) {
+        refill = 2;
+      } else {
+        refill = 2 + Math.floor(wave / 5);
+      }
+      s.ammo = Math.min(MAX_AMMO_CAP, s.ammo + refill);
+    }
+  });
+  
+  // floating wave text
+  floatingTexts.push({
+    text: `WAVE ${wave}`,
+    x: dims.w / 2,
+    y: dims.h * 0.35,
+    alpha: 1,
+    scale: 1.5,
+    life: 2.0,
+    color: '#ff3a3a',
+    big: true
+  });
+}
+
+// Input
+function handleTap(clientX, clientY) {
+  if (gameState !== 'playing') return;
+  
+  const rect = canvas.getBoundingClientRect();
+  const x = clientX - rect.left;
+  const lane = Math.floor(x / (dims.w / SECTOR_COUNT));
+  if (lane < 0 || lane >= SECTOR_COUNT) return;
+  
+  const sector = sectors[lane];
+  
+  if (sector.alive) {
+    // Fire cannon
+    if (sector.ammo > 0) {
+      sector.ammo--;
+      sector.cannonRecoil = 1;
+      sector.muzzleFlash = 1;
+      audio.play('shoot');
+      
+      bullets.push({
+        x: getSectorX(lane),
+        y: getCannonY() - 20,
+        speed: BULLET_SPEED_FACTOR * dims.h,
+        lane: lane,
+        alive: true
+      });
+      
+      // Muzzle particles
+      for (let i = 0; i < 6; i++) {
+        particles.push({
+          x: getSectorX(lane),
+          y: getCannonY() - 20,
+          vx: (Math.random() - 0.5) * 80,
+          vy: -Math.random() * 150 - 50,
+          life: 0.3 + Math.random() * 0.2,
+          maxLife: 0.5,
+          color: '#ffaa44',
+          size: 2 + Math.random() * 3
+        });
+      }
+      
+      screenShake.intensity = 3;
+    } else {
+      audio.play('empty');
+    }
+  } else {
+    // Parry mode - cannon destroyed
+    // Check if enemy is in parry zone
+    const parryZoneTop = getCannonY() - dims.h * PARRY_ZONE_HEIGHT_FACTOR;
+    const parryZoneBottom = getCannonY() + 20;
+    
+    let parried = false;
+    for (let e of enemies) {
+      if (e.lane === lane && e.alive && e.y + e.height / 2 > parryZoneTop && e.y - e.height / 2 < parryZoneBottom) {
+        // Successful parry!
+        e.alive = false;
+        parried = true;
+        totalParries++;
+        score += 25;
+        combo++;
+        if (combo > maxCombo) maxCombo = combo;
+        
+        audio.play('parry');
+        
+        // Parry effects
+        sector.shieldFlash = 1;
+        slowMo.active = true;
+        slowMo.factor = 0.2;
+        slowMo.timer = 0.5;
+        flashEffect.active = true;
+        flashEffect.alpha = 0.4;
+        flashEffect.color = '#44aaff';
+        screenShake.intensity = 10;
+        
+        // SHOCKWAVE - travels up the lane
+        audio.play('shockwave');
+        shockwaves.push({
+          lane: lane,
+          x: getSectorX(lane),
+          y: getCannonY() - 10,
+          targetY: -50, // travels to top of screen
+          speed: dims.h * 0.7, // fast but visible
+          width: getSectorWidth() * 0.85,
+          height: 30,
+          alive: true,
+          alpha: 1.0,
+          trailParticleTimer: 0
+        });
+        
+        floatingTexts.push({
+          text: 'SHOCKWAVE!',
+          x: getSectorX(lane),
+          y: getCannonY() - 70,
+          alpha: 1, scale: 1.4, life: 1.5,
+          color: '#44ffdd', big: false
+        });
+        
+        // Rebuild cannon
+        sector.alive = true;
+        sector.ammo = 3; // enough to fight but not comfortable
+        sector.rebuildFlash = 1;
+        audio.play('rebuild');
+        
+        // Cancel lane freeze if active (tutorial complete)
+        if (laneFreeze.active && laneFreeze.lane === lane) {
+          laneFreeze.active = false;
+          laneFreeze.lane = -1;
+        }
+        
+        // Shield particles
+        for (let i = 0; i < 20; i++) {
+          const angle = Math.random() * Math.PI * 2;
+          particles.push({
+            x: getSectorX(lane),
+            y: getCannonY(),
+            vx: Math.cos(angle) * (50 + Math.random() * 100),
+            vy: Math.sin(angle) * (50 + Math.random() * 100),
+            life: 0.5 + Math.random() * 0.5,
+            maxLife: 1,
+            color: '#44aaff',
+            size: 2 + Math.random() * 4
+          });
+        }
+        
+        // Explosion particles for enemy
+        for (let i = 0; i < 15; i++) {
+          const angle = Math.random() * Math.PI * 2;
+          particles.push({
+            x: e.x,
+            y: e.y,
+            vx: Math.cos(angle) * (30 + Math.random() * 80),
+            vy: Math.sin(angle) * (30 + Math.random() * 80),
+            life: 0.4 + Math.random() * 0.4,
+            maxLife: 0.8,
+            color: Math.random() > 0.5 ? '#ff4444' : '#ffaa44',
+            size: 2 + Math.random() * 4
+          });
+        }
+        
+        floatingTexts.push({
+          text: 'PARRY!',
+          x: getSectorX(lane),
+          y: getCannonY() - 40,
+          alpha: 1, scale: 1.2, life: 1.2,
+          color: '#44aaff', big: false
+        });
+        
+        break;
+      }
+    }
+    
+    if (!parried) {
+      // Failed parry / no enemy in zone - just show shield attempt
+      sector.shieldFlash = 0.5;
+    }
+  }
+}
+
+canvas.addEventListener('mousedown', (e) => { e.preventDefault(); handleTap(e.clientX, e.clientY); });
+canvas.addEventListener('touchstart', (e) => {
+  e.preventDefault();
+  for (let t of e.touches) handleTap(t.clientX, t.clientY);
+}, { passive: false });
+
+document.getElementById('startBtn').addEventListener('click', () => {
+  audio.init();
+  document.getElementById('startScreen').style.display = 'none';
+  startGame();
+});
+
+document.getElementById('restartBtn').addEventListener('click', () => {
+  document.getElementById('gameOverScreen').style.display = 'none';
+  startGame();
+});
+
+// ============ UPDATE ============
+let lastTime = 0;
+
+function update(dt) {
+  if (gameState !== 'playing') return;
+  
+  // Slow mo
+  let adt = dt;
+  if (slowMo.active) {
+    adt = dt * slowMo.factor;
+    slowMo.timer -= dt;
+    if (slowMo.timer <= 0) {
+      slowMo.active = false;
+      slowMo.factor = 1;
+    }
+  }
+  
+  // Screen shake decay
+  if (screenShake.intensity > 0.1) {
+    screenShake.x = (Math.random() - 0.5) * screenShake.intensity * 2;
+    screenShake.y = (Math.random() - 0.5) * screenShake.intensity * 2;
+    screenShake.intensity *= Math.pow(screenShake.decay, dt * 60);
+  } else {
+    screenShake.x = 0;
+    screenShake.y = 0;
+    screenShake.intensity = 0;
+  }
+  
+  // Flash decay
+  if (flashEffect.active) {
+    flashEffect.alpha -= dt * 3;
+    if (flashEffect.alpha <= 0) {
+      flashEffect.active = false;
+      flashEffect.alpha = 0;
+    }
+  }
+  
+  // Sector updates
+  sectors.forEach(s => {
+    if (s.cannonRecoil > 0) s.cannonRecoil -= dt * 8;
+    if (s.muzzleFlash > 0) s.muzzleFlash -= dt * 6;
+    if (s.shieldFlash > 0) s.shieldFlash -= dt * 3;
+    if (s.rebuildFlash > 0) s.rebuildFlash -= dt * 2;
+  });
+  
+  // Spawn enemies
+  spawnTimer -= adt;
+  if (spawnTimer <= 0 && waveEnemiesSpawned < waveEnemies) {
+    // Use scripted queue if available, otherwise dynamic spawning
+    if (waveSpawnQueue.length > 0) {
+      const forcedLane = waveSpawnQueue.shift();
+      spawnEnemy(forcedLane);
+    } else {
+      spawnEnemy();
+    }
+    waveEnemiesSpawned++;
+    spawnTimer = spawnInterval * (0.6 + Math.random() * 0.4);
+  }
+  
+  // Check wave complete
+  if (waveEnemiesSpawned >= waveEnemies && enemies.filter(e => e.alive).length === 0) {
+    nextWave();
+  }
+  
+  // Update bullets
+  bullets.forEach(b => {
+    if (!b.alive) return;
+    b.y -= b.speed * adt;
+    if (b.y < -20) b.alive = false;
+    
+    // Trail particles
+    if (Math.random() < 0.5) {
+      particles.push({
+        x: b.x + (Math.random()-0.5)*3,
+        y: b.y + 5,
+        vx: 0, vy: 10,
+        life: 0.2, maxLife: 0.2,
+        color: '#ff8844',
+        size: 1.5
+      });
+    }
+  });
+  
+  // Lane freeze timer countdown
+  if (laneFreeze.active) {
+    laneFreeze.timer -= dt;
+    if (laneFreeze.timer <= 0) {
+      laneFreeze.active = false;
+      laneFreeze.lane = -1;
+    }
+  }
+  
+  // Update enemies
+  enemies.forEach(e => {
+    if (!e.alive) return;
+    
+    // Freeze enemies in the tutorial lane
+    const frozen = laneFreeze.active && e.lane === laneFreeze.lane;
+    if (!frozen) {
+      e.y += e.speed * adt;
+    }
+    if (e.hitFlash > 0) e.hitFlash -= dt * 5;
+    
+    // Check if enemy reached cannon
+    if (e.y > getCannonY() + 10) {
+      const sector = sectors[e.lane];
+      if (sector.alive) {
+        // Destroy cannon
+        sector.alive = false;
+        sector.ammo = 0;
+        e.alive = false;
+        combo = 0;
+        audio.play('destroy');
+        screenShake.intensity = 12;
+        flashEffect.active = true;
+        flashEffect.alpha = 0.5;
+        flashEffect.color = '#ff2222';
+        
+        // FIRST DEATH TUTORIAL: freeze this lane so player can learn parry
+        if (firstDeathEver) {
+          firstDeathEver = false;
+          laneFreeze.active = true;
+          laneFreeze.lane = e.lane;
+          laneFreeze.timer = laneFreeze.maxTime;
+        }
+        
+        // Destruction particles
+        for (let i = 0; i < 25; i++) {
+          const angle = Math.random() * Math.PI * 2;
+          particles.push({
+            x: getSectorX(e.lane),
+            y: getCannonY(),
+            vx: Math.cos(angle) * (40 + Math.random() * 120),
+            vy: Math.sin(angle) * (40 + Math.random() * 120) - 50,
+            life: 0.5 + Math.random() * 0.8,
+            maxLife: 1.3,
+            color: Math.random() > 0.5 ? '#ff4444' : '#ff8844',
+            size: 3 + Math.random() * 5
+          });
+        }
+        
+        floatingTexts.push({
+          text: 'DESTROYED!',
+          x: getSectorX(e.lane),
+          y: getCannonY() - 40,
+          alpha: 1, scale: 1, life: 1.5,
+          color: '#ff3333', big: false
+        });
+      } else {
+        // Cannon already destroyed - GAME OVER
+        e.alive = false;
+        gameOver();
+        return;
+      }
+    }
+  });
+  
+  // Bullet-Enemy collisions
+  bullets.forEach(b => {
+    if (!b.alive) return;
+    enemies.forEach(e => {
+      if (!e.alive) return;
+      if (b.lane !== e.lane) return;
+      
+      const dx = Math.abs(b.x - e.x);
+      const dy = Math.abs(b.y - e.y);
+      if (dx < e.width / 2 + 4 && dy < e.height / 2 + 8) {
+        b.alive = false;
+        e.hp--;
+        
+        if (e.hp <= 0) {
+          e.alive = false;
+          totalKills++;
+          combo++;
+          if (combo > maxCombo) maxCombo = combo;
+          
+          let points = 10 + Math.min(combo, 20) * 2;
+          score += points;
+          
+          audio.play('hit');
+          if (combo > 0 && combo % 5 === 0) audio.play('combo');
+          
+          screenShake.intensity = 6;
+          flashEffect.active = true;
+          flashEffect.alpha = 0.2;
+          flashEffect.color = '#ff6644';
+          
+          // Explosion
+          for (let i = 0; i < 12; i++) {
+            const angle = Math.random() * Math.PI * 2;
+            particles.push({
+              x: e.x,
+              y: e.y,
+              vx: Math.cos(angle) * (30 + Math.random() * 80),
+              vy: Math.sin(angle) * (30 + Math.random() * 80),
+              life: 0.3 + Math.random() * 0.4,
+              maxLife: 0.7,
+              color: Math.random() > 0.3 ? '#ff6644' : '#ffcc44',
+              size: 2 + Math.random() * 4
+            });
+          }
+          
+          let comboText = combo >= 3 ? ` x${combo}` : '';
+          floatingTexts.push({
+            text: `+${points}${comboText}`,
+            x: e.x,
+            y: e.y,
+            alpha: 1, scale: combo >= 5 ? 1.3 : 1, life: 1,
+            color: combo >= 5 ? '#ffcc00' : '#fff', big: false
+          });
+        } else {
+          // Hit but not dead
+          e.hitFlash = 1;
+          screenShake.intensity = 3;
+          for (let i = 0; i < 5; i++) {
+            particles.push({
+              x: e.x + (Math.random()-0.5) * e.width * 0.5,
+              y: e.y + (Math.random()-0.5) * e.height * 0.5,
+              vx: (Math.random()-0.5) * 60,
+              vy: (Math.random()-0.5) * 60,
+              life: 0.2, maxLife: 0.2,
+              color: '#ffaa44',
+              size: 2
+            });
+          }
+        }
+      }
+    });
+  });
+  
+  // Update shockwaves
+  shockwaves.forEach(sw => {
+    if (!sw.alive) return;
+    sw.y -= sw.speed * adt;
+    sw.alpha = Math.max(0.3, sw.alpha - adt * 0.4);
+    
+    // Trail particles along the shockwave edges
+    sw.trailParticleTimer -= adt;
+    if (sw.trailParticleTimer <= 0) {
+      sw.trailParticleTimer = 0.02;
+      // Side trail particles
+      for (let side = -1; side <= 1; side += 2) {
+        particles.push({
+          x: sw.x + side * sw.width * 0.4 + (Math.random() - 0.5) * 10,
+          y: sw.y + (Math.random() - 0.5) * sw.height,
+          vx: side * (20 + Math.random() * 30),
+          vy: Math.random() * 30 + 10,
+          life: 0.3 + Math.random() * 0.2,
+          maxLife: 0.5,
+          color: Math.random() > 0.5 ? '#44aaff' : '#44ffdd',
+          size: 1.5 + Math.random() * 2
+        });
+      }
+      // Center energy particles
+      particles.push({
+        x: sw.x + (Math.random() - 0.5) * sw.width * 0.6,
+        y: sw.y,
+        vx: (Math.random() - 0.5) * 20,
+        vy: 20 + Math.random() * 20,
+        life: 0.2 + Math.random() * 0.15,
+        maxLife: 0.35,
+        color: '#88ddff',
+        size: 1 + Math.random() * 2
+      });
+    }
+    
+    // Check collision with enemies in same lane
+    enemies.forEach(e => {
+      if (!e.alive || e.lane !== sw.lane) return;
+      
+      // Check if shockwave overlaps enemy
+      const dy = Math.abs(sw.y - e.y);
+      if (dy < sw.height / 2 + e.height / 2 + 5) {
+        e.alive = false;
+        totalKills++;
+        totalShockwaveKills++;
+        
+        // Half points for shockwave kills
+        let points = Math.floor((10 + Math.min(combo, 20)) * 0.5);
+        score += points;
+        
+        audio.play('shockwave_hit');
+        screenShake.intensity = Math.max(screenShake.intensity, 4);
+        
+        // Cascade explosion - slightly different from normal kills
+        for (let i = 0; i < 10; i++) {
+          const angle = Math.random() * Math.PI * 2;
+          particles.push({
+            x: e.x,
+            y: e.y,
+            vx: Math.cos(angle) * (40 + Math.random() * 60),
+            vy: Math.sin(angle) * (40 + Math.random() * 60),
+            life: 0.3 + Math.random() * 0.3,
+            maxLife: 0.6,
+            color: Math.random() > 0.4 ? '#44aaff' : '#44ffdd',
+            size: 2 + Math.random() * 4
+          });
+        }
+        // Add some fiery particles too
+        for (let i = 0; i < 5; i++) {
+          const angle = Math.random() * Math.PI * 2;
+          particles.push({
+            x: e.x,
+            y: e.y,
+            vx: Math.cos(angle) * (20 + Math.random() * 50),
+            vy: Math.sin(angle) * (20 + Math.random() * 50),
+            life: 0.2 + Math.random() * 0.2,
+            maxLife: 0.4,
+            color: '#ffaa44',
+            size: 2 + Math.random() * 3
+          });
+        }
+        
+        floatingTexts.push({
+          text: `+${points}`,
+          x: e.x + (Math.random() - 0.5) * 20,
+          y: e.y,
+          alpha: 1, scale: 0.9, life: 0.8,
+          color: '#44ffdd', big: false
+        });
+      }
+    });
+    
+    // Shockwave dies when it leaves the screen
+    if (sw.y < sw.targetY) {
+      sw.alive = false;
+    }
+  });
+  
+  // Update particles
+  particles.forEach(p => {
+    p.x += p.vx * adt;
+    p.y += p.vy * adt;
+    p.vy += 200 * adt; // gravity
+    p.life -= adt;
+  });
+  
+  // Update floating texts
+  floatingTexts.forEach(ft => {
+    ft.y -= 30 * adt;
+    ft.life -= adt;
+    ft.alpha = Math.min(1, ft.life * 2);
+  });
+  
+  // Cleanup
+  bullets = bullets.filter(b => b.alive);
+  enemies = enemies.filter(e => e.alive);
+  shockwaves = shockwaves.filter(sw => sw.alive);
+  particles = particles.filter(p => p.life > 0);
+  floatingTexts = floatingTexts.filter(ft => ft.life > 0);
+}
+
+function gameOver() {
+  gameState = 'gameover';
+  audio.play('gameover');
+  
+  document.getElementById('finalScore').textContent = score;
+  document.getElementById('finalStats').textContent = 
+    `WAVE ${wave} · ${totalKills} KILLS · ${totalParries} PARRIES · ${totalShockwaveKills} SWEPT · ${maxCombo}x COMBO`;
+  
+  setTimeout(() => {
+    document.getElementById('gameOverScreen').style.display = 'flex';
+  }, 800);
+}
+
+// ============ DRAW ============
+function draw() {
+  const W = dims.w;
+  const H = dims.h;
+  const sw = getSectorWidth();
+  const cannonY = getCannonY();
+  
+  ctx.save();
+  ctx.translate(screenShake.x, screenShake.y);
+  
+  // Background
+  const bgGrad = ctx.createLinearGradient(0, 0, 0, H);
+  bgGrad.addColorStop(0, '#06060e');
+  bgGrad.addColorStop(0.5, '#0a0a18');
+  bgGrad.addColorStop(1, '#0e0e20');
+  ctx.fillStyle = bgGrad;
+  ctx.fillRect(-10, -10, W + 20, H + 20);
+  
+  // Grid lines (subtle)
+  ctx.strokeStyle = 'rgba(40, 40, 80, 0.3)';
+  ctx.lineWidth = 1;
+  for (let i = 1; i < SECTOR_COUNT; i++) {
+    ctx.beginPath();
+    ctx.setLineDash([4, 8]);
+    ctx.moveTo(sw * i, 0);
+    ctx.lineTo(sw * i, H);
+    ctx.stroke();
+  }
+  ctx.setLineDash([]);
+  
+  // Horizontal grid
+  for (let y = 0; y < H; y += 60) {
+    ctx.strokeStyle = `rgba(30, 30, 60, ${0.1 + Math.sin(y * 0.01) * 0.05})`;
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(W, y);
+    ctx.stroke();
+  }
+  
+  // Parry zones for destroyed cannons
+  sectors.forEach((s, i) => {
+    if (!s.alive) {
+      const zoneTop = cannonY - H * PARRY_ZONE_HEIGHT_FACTOR;
+      const isFrozenLane = laneFreeze.active && laneFreeze.lane === i;
+      
+      // Brighter zone during tutorial freeze
+      const zoneAlpha = isFrozenLane ? 0.2 : 0.06;
+      const grad = ctx.createLinearGradient(0, zoneTop, 0, cannonY + 20);
+      grad.addColorStop(0, 'rgba(68, 170, 255, 0)');
+      grad.addColorStop(0.5, `rgba(68, 170, 255, ${zoneAlpha})`);
+      grad.addColorStop(1, `rgba(68, 170, 255, ${zoneAlpha * 2})`);
+      ctx.fillStyle = grad;
+      ctx.fillRect(sw * i, zoneTop, sw, cannonY + 20 - zoneTop);
+      
+      // Parry zone border - pulses during freeze
+      const borderAlpha = isFrozenLane ? 
+        0.5 + Math.sin(Date.now() * 0.01) * 0.3 : 0.3;
+      ctx.strokeStyle = `rgba(68, 170, 255, ${borderAlpha})`;
+      ctx.lineWidth = isFrozenLane ? 2 : 1;
+      ctx.setLineDash([6, 6]);
+      ctx.strokeRect(sw * i + 2, zoneTop, sw - 4, cannonY + 20 - zoneTop);
+      ctx.setLineDash([]);
+      
+      if (isFrozenLane) {
+        // TUTORIAL: Big pulsing prompt with arrow
+        const pulse = Math.sin(Date.now() * 0.008) * 0.3 + 0.7;
+        const promptY = cannonY - H * PARRY_ZONE_HEIGHT_FACTOR * 0.5;
+        
+        // Glowing backdrop behind text
+        const textGlow = ctx.createRadialGradient(
+          getSectorX(i), promptY, 0,
+          getSectorX(i), promptY, sw * 0.4
+        );
+        textGlow.addColorStop(0, `rgba(68, 170, 255, ${pulse * 0.15})`);
+        textGlow.addColorStop(1, 'rgba(68, 170, 255, 0)');
+        ctx.fillStyle = textGlow;
+        ctx.fillRect(sw * i, promptY - 40, sw, 80);
+        
+        // Pointing arrow bouncing down
+        const arrowBounce = Math.sin(Date.now() * 0.006) * 6;
+        ctx.fillStyle = `rgba(68, 220, 255, ${pulse})`;
+        ctx.font = `bold 18px "Orbitron", sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.fillText('▼', getSectorX(i), cannonY - 40 + arrowBounce);
+        
+        // TAP HERE text
+        ctx.fillStyle = `rgba(68, 220, 255, ${pulse})`;
+        ctx.font = `bold 12px "Orbitron", sans-serif`;
+        ctx.fillText('TAP', getSectorX(i), cannonY - 55);
+        ctx.fillText('HERE', getSectorX(i), cannonY - 65);
+        
+        // Countdown ring/bar showing freeze time remaining
+        const freezeProgress = laneFreeze.timer / laneFreeze.maxTime;
+        const barW = sw * 0.6;
+        const barX = getSectorX(i) - barW / 2;
+        const barY = cannonY + 22;
+        ctx.fillStyle = 'rgba(30, 30, 60, 0.6)';
+        ctx.fillRect(barX, barY, barW, 3);
+        ctx.fillStyle = `rgba(68, 170, 255, ${0.5 + pulse * 0.3})`;
+        ctx.fillRect(barX, barY, barW * freezeProgress, 3);
+        
+        // Frozen enemy visual indicator - ice/stun particles
+        enemies.forEach(e => {
+          if (e.alive && e.lane === i && Math.random() < 0.15) {
+            particles.push({
+              x: e.x + (Math.random() - 0.5) * e.width,
+              y: e.y + (Math.random() - 0.5) * e.height,
+              vx: (Math.random() - 0.5) * 15,
+              vy: -Math.random() * 20,
+              life: 0.3 + Math.random() * 0.3,
+              maxLife: 0.6,
+              color: '#88ccff',
+              size: 1.5 + Math.random() * 2
+            });
+          }
+        });
+      } else {
+        // Normal TAP TO PARRY text
+        ctx.fillStyle = 'rgba(68, 170, 255, 0.5)';
+        ctx.font = '9px "Share Tech Mono", monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('TAP TO', getSectorX(i), cannonY - 20);
+        ctx.fillText('PARRY', getSectorX(i), cannonY - 8);
+      }
+    }
+    
+    // Shield flash
+    if (s.shieldFlash > 0) {
+      ctx.fillStyle = `rgba(68, 170, 255, ${s.shieldFlash * 0.3})`;
+      ctx.fillRect(sw * i, 0, sw, H);
+    }
+    
+    // Rebuild flash
+    if (s.rebuildFlash > 0) {
+      ctx.fillStyle = `rgba(68, 255, 170, ${s.rebuildFlash * 0.15})`;
+      ctx.fillRect(sw * i, 0, sw, H);
+    }
+  });
+  
+  // Enemies
+  enemies.forEach(e => {
+    if (!e.alive) return;
+    ctx.save();
+    ctx.translate(e.x, e.y);
+    
+    // Glow
+    const isFrozen = laneFreeze.active && e.lane === laneFreeze.lane;
+    const glow = ctx.createRadialGradient(0, 0, 0, 0, 0, e.width * 0.8);
+    if (isFrozen) {
+      glow.addColorStop(0, 'rgba(100, 180, 255, 0.25)');
+      glow.addColorStop(1, 'rgba(100, 180, 255, 0)');
+    } else {
+      glow.addColorStop(0, 'rgba(255, 60, 60, 0.15)');
+      glow.addColorStop(1, 'rgba(255, 60, 60, 0)');
+    }
+    ctx.fillStyle = glow;
+    ctx.fillRect(-e.width, -e.width, e.width * 2, e.width * 2);
+    
+    // Ship body — blue tint when frozen
+    let shipColor;
+    if (e.hitFlash > 0) {
+      shipColor = '#fff';
+    } else if (isFrozen) {
+      shipColor = e.maxHp > 1 ? '#6688bb' : '#5577aa';
+    } else {
+      shipColor = e.maxHp > 1 ? '#ff6644' : '#cc3333';
+    }
+    ctx.fillStyle = shipColor;
+    ctx.beginPath();
+    ctx.moveTo(0, -e.height / 2);
+    ctx.lineTo(-e.width / 2, e.height / 2);
+    ctx.lineTo(-e.width / 4, e.height / 3);
+    ctx.lineTo(0, e.height / 2);
+    ctx.lineTo(e.width / 4, e.height / 3);
+    ctx.lineTo(e.width / 2, e.height / 2);
+    ctx.closePath();
+    ctx.fill();
+    
+    // Ship detail
+    ctx.fillStyle = e.hitFlash > 0 ? '#fff' : (isFrozen ? '#7799cc' : '#ff8866');
+    ctx.beginPath();
+    ctx.moveTo(0, -e.height / 3);
+    ctx.lineTo(-e.width / 5, e.height / 5);
+    ctx.lineTo(e.width / 5, e.height / 5);
+    ctx.closePath();
+    ctx.fill();
+    
+    // HP bar for multi-hp enemies
+    if (e.maxHp > 1) {
+      const barW = e.width * 0.6;
+      const barH = 3;
+      ctx.fillStyle = '#333';
+      ctx.fillRect(-barW/2, -e.height/2 - 8, barW, barH);
+      ctx.fillStyle = '#ff4444';
+      ctx.fillRect(-barW/2, -e.height/2 - 8, barW * (e.hp / e.maxHp), barH);
+    }
+    
+    ctx.restore();
+  });
+  
+  // Shockwaves
+  shockwaves.forEach(sw => {
+    if (!sw.alive) return;
+    const swX = sw.x;
+    const swY = sw.y;
+    const halfW = sw.width / 2;
+    const halfH = sw.height / 2;
+    
+    ctx.save();
+    ctx.globalAlpha = sw.alpha;
+    
+    // Outer glow
+    const outerGlow = ctx.createRadialGradient(swX, swY, 0, swX, swY, halfW * 1.2);
+    outerGlow.addColorStop(0, 'rgba(68, 255, 221, 0.25)');
+    outerGlow.addColorStop(0.5, 'rgba(68, 170, 255, 0.12)');
+    outerGlow.addColorStop(1, 'rgba(68, 170, 255, 0)');
+    ctx.fillStyle = outerGlow;
+    ctx.fillRect(swX - halfW * 1.3, swY - halfH * 2.5, sw.width * 1.3, sw.height * 2.5);
+    
+    // Main shockwave bar - energy band
+    const mainGrad = ctx.createLinearGradient(swX - halfW, swY, swX + halfW, swY);
+    mainGrad.addColorStop(0, 'rgba(68, 170, 255, 0)');
+    mainGrad.addColorStop(0.15, 'rgba(68, 220, 255, 0.6)');
+    mainGrad.addColorStop(0.3, 'rgba(68, 255, 221, 0.9)');
+    mainGrad.addColorStop(0.5, 'rgba(150, 255, 240, 1)');
+    mainGrad.addColorStop(0.7, 'rgba(68, 255, 221, 0.9)');
+    mainGrad.addColorStop(0.85, 'rgba(68, 220, 255, 0.6)');
+    mainGrad.addColorStop(1, 'rgba(68, 170, 255, 0)');
+    ctx.fillStyle = mainGrad;
+    ctx.fillRect(swX - halfW, swY - 4, sw.width, 8);
+    
+    // Bright center core
+    const coreGrad = ctx.createLinearGradient(swX - halfW * 0.6, swY, swX + halfW * 0.6, swY);
+    coreGrad.addColorStop(0, 'rgba(200, 255, 250, 0)');
+    coreGrad.addColorStop(0.3, 'rgba(200, 255, 250, 0.8)');
+    coreGrad.addColorStop(0.5, 'rgba(255, 255, 255, 1)');
+    coreGrad.addColorStop(0.7, 'rgba(200, 255, 250, 0.8)');
+    coreGrad.addColorStop(1, 'rgba(200, 255, 250, 0)');
+    ctx.fillStyle = coreGrad;
+    ctx.fillRect(swX - halfW * 0.6, swY - 2, sw.width * 0.6, 4);
+    
+    // Leading edge arc (the front of the wave)
+    ctx.strokeStyle = `rgba(150, 255, 240, ${sw.alpha * 0.7})`;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.ellipse(swX, swY - halfH * 0.3, halfW * 0.7, halfH * 0.6, 0, Math.PI, Math.PI * 2);
+    ctx.stroke();
+    
+    // Trailing energy wisps
+    ctx.strokeStyle = `rgba(68, 170, 255, ${sw.alpha * 0.3})`;
+    ctx.lineWidth = 1;
+    for (let i = 0; i < 3; i++) {
+      const trailY = swY + 8 + i * 6;
+      const trailW = halfW * (0.8 - i * 0.15);
+      ctx.beginPath();
+      ctx.moveTo(swX - trailW, trailY);
+      ctx.quadraticCurveTo(swX, trailY + 3, swX + trailW, trailY);
+      ctx.stroke();
+    }
+    
+    ctx.restore();
+  });
+  
+  // Bullets
+  bullets.forEach(b => {
+    if (!b.alive) return;
+    ctx.fillStyle = '#ffcc44';
+    ctx.shadowColor = '#ffaa00';
+    ctx.shadowBlur = 8;
+    ctx.beginPath();
+    ctx.ellipse(b.x, b.y, 3, 7, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+  });
+  
+  // Cannons
+  sectors.forEach((s, i) => {
+    const cx = getSectorX(i);
+    const cy = cannonY;
+    
+    if (s.alive) {
+      const recoilY = s.cannonRecoil > 0 ? s.cannonRecoil * 8 : 0;
+      
+      ctx.save();
+      ctx.translate(cx, cy + recoilY);
+      
+      // Muzzle flash
+      if (s.muzzleFlash > 0) {
+        ctx.fillStyle = `rgba(255, 200, 100, ${s.muzzleFlash * 0.8})`;
+        ctx.beginPath();
+        ctx.ellipse(0, -25, 8 + s.muzzleFlash * 5, 15 + s.muzzleFlash * 10, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      
+      // Cannon base
+      ctx.fillStyle = '#2a3a4a';
+      ctx.fillRect(-18, 5, 36, 12);
+      
+      // Cannon barrel
+      ctx.fillStyle = '#4a5a6a';
+      ctx.fillRect(-6, -22, 12, 30);
+      
+      // Cannon detail
+      ctx.fillStyle = '#5a7a8a';
+      ctx.fillRect(-10, 0, 20, 6);
+      
+      // Cannon tip
+      ctx.fillStyle = '#6a8a9a';
+      ctx.fillRect(-8, -24, 16, 4);
+      
+      ctx.restore();
+      
+      // Ammo display
+      const ammoY = cy + 28;
+      const ammoW = Math.min(sw * 0.7, s.maxAmmo * 7);
+      const dotW = ammoW / s.maxAmmo;
+      const startX = cx - ammoW / 2;
+      
+      for (let a = 0; a < s.maxAmmo; a++) {
+        const filled = a < s.ammo;
+        ctx.fillStyle = filled ? 
+          (s.ammo <= 2 ? '#ff3333' : '#44aa66') : 
+          'rgba(60, 60, 80, 0.4)';
+        ctx.fillRect(startX + a * dotW + 1, ammoY, dotW - 2, 4);
+      }
+    } else {
+      // Destroyed cannon - rubble
+      ctx.fillStyle = '#1a1a2a';
+      ctx.fillRect(cx - 15, cy + 2, 30, 10);
+      ctx.fillStyle = '#222235';
+      ctx.fillRect(cx - 8, cy - 5, 6, 10);
+      ctx.fillRect(cx + 2, cy - 3, 8, 8);
+      
+      // Warning indicator
+      const pulse = Math.sin(Date.now() * 0.008) * 0.5 + 0.5;
+      ctx.fillStyle = `rgba(255, 50, 50, ${0.3 + pulse * 0.4})`;
+      ctx.font = 'bold 10px "Orbitron", sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('⚠', cx, cy + 30);
+    }
+  });
+  
+  // Particles
+  particles.forEach(p => {
+    const alpha = p.life / p.maxLife;
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = p.color;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.size * alpha, 0, Math.PI * 2);
+    ctx.fill();
+  });
+  ctx.globalAlpha = 1;
+  
+  // Floating texts
+  floatingTexts.forEach(ft => {
+    ctx.globalAlpha = ft.alpha;
+    ctx.fillStyle = ft.color;
+    ctx.font = ft.big ? 
+      `bold ${20 * ft.scale}px "Orbitron", sans-serif` :
+      `bold ${13 * ft.scale}px "Orbitron", sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.fillText(ft.text, ft.x, ft.y);
+  });
+  ctx.globalAlpha = 1;
+  
+  // HUD
+  // Score
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold 16px "Orbitron", sans-serif';
+  ctx.textAlign = 'left';
+  ctx.fillText(score, 12, 28);
+  
+  // Combo
+  if (combo >= 3) {
+    const comboAlpha = Math.min(1, 0.5 + Math.sin(Date.now() * 0.01) * 0.5);
+    ctx.fillStyle = `rgba(255, 204, 0, ${comboAlpha})`;
+    ctx.font = 'bold 11px "Orbitron", sans-serif';
+    ctx.textAlign = 'right';
+    ctx.fillText(`${combo}x COMBO`, W - 12, 28);
+  }
+  
+  // Wave
+  ctx.fillStyle = '#667';
+  ctx.font = '10px "Share Tech Mono", monospace';
+  ctx.textAlign = 'left';
+  ctx.fillText(`WAVE ${wave}`, 12, 46);
+  
+  // Flash effect
+  if (flashEffect.active && flashEffect.alpha > 0) {
+    ctx.fillStyle = flashEffect.color;
+    ctx.globalAlpha = flashEffect.alpha;
+    ctx.fillRect(-10, -10, W + 20, H + 20);
+    ctx.globalAlpha = 1;
+  }
+  
+  ctx.restore();
+}
+
+// ============ GAME LOOP ============
+function gameLoop(timestamp) {
+  if (!lastTime) lastTime = timestamp;
+  let dt = (timestamp - lastTime) / 1000;
+  lastTime = timestamp;
+  
+  // Clamp dt
+  if (dt > 0.1) dt = 0.016;
+  
+  if (gameState === 'playing') {
+    update(dt);
+  }
+  
+  draw();
+  requestAnimationFrame(gameLoop);
+}
+
+requestAnimationFrame(gameLoop);
+</script>
+</body>
+</html>
