@@ -145,6 +145,11 @@ function update(dt) {
           laneFreeze.waitingForParryEntry = true;
         }
 
+        // End fire tutorial — parry tutorial takes over
+        if (tutorial.active) {
+          tutorial.active = false;
+        }
+
         // Destruction particles
         for (let i = 0; i < 25; i++) {
           const angle = Math.random() * Math.PI * 2;
@@ -221,6 +226,15 @@ function update(dt) {
 
           audio.play('hit');
           if (combo > 0 && combo % 5 === 0) audio.play('combo');
+
+          // Tutorial: after 2 kills, halve the weakened lane's ammo
+          if (tutorial.active && !tutorial.ammoReduced) {
+            tutorial.killCount++;
+            if (tutorial.killCount >= 2) {
+              tutorial.ammoReduced = true;
+              sectors[tutorial.weakenLane].ammo = Math.floor(MAX_AMMO_CAP / 2);
+            }
+          }
 
           screenShake.intensity = 6;
           flashEffect.active = true;

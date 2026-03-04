@@ -15,14 +15,26 @@ function buildWaveSpawnQueue() {
   waveSpawnQueue = [];
 
   if (wave === 1) {
-    // Wave 1: Pick 2 adjacent lanes to pressure hard - 6 enemies, mostly in 2 lanes
+    // Wave 1: TUTORIAL WAVE
+    // Phase 1: 2 enemies in hintLane teach the player to tap-to-fire
+    // Phase 2: after 2 kills, weakenLane's ammo is halved → 3 enemies overwhelm it
+    // Phase 3: cannon destroyed → existing parry tutorial (laneFreeze) kicks in
     const startLane = Math.floor(Math.random() * 3); // 0, 1, or 2
     pressureLanes = [startLane, startLane + 1];
-    // Queue: pressure, pressure, other, pressure, pressure, pressure
+
+    tutorial.active = true;
+    tutorial.hintLane = pressureLanes[0];
+    tutorial.weakenLane = pressureLanes[1];
+    tutorial.killCount = 0;
+    tutorial.ammoReduced = false;
+
     waveSpawnQueue = [
-      pressureLanes[0], pressureLanes[1],
-      (startLane + 2) % SECTOR_COUNT,
-      pressureLanes[0], pressureLanes[1], pressureLanes[0]
+      // Phase 1: teach firing
+      pressureLanes[0], pressureLanes[0],
+      // Phase 2: overwhelm weakened lane (ammo=2 → kills 2, 3rd destroys cannon)
+      pressureLanes[1], pressureLanes[1], pressureLanes[1],
+      // Phase 3: parry target arrives after destruction blast clears
+      pressureLanes[1]
     ];
   } else if (wave === 2) {
     // Wave 2: Shift pressure to different lanes, slightly more enemies
