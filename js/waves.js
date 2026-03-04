@@ -91,8 +91,8 @@ function spawnEnemy(forceLane) {
   const sw = getSectorWidth();
   const speed = enemySpeed * dims.h;
 
-  // Wave 0: lane 2 (index 1) enemies are 25% faster to ensure cannon destruction
-  const finalSpeed = (wave === 0 && lane === 1) ? speed * 1.25 : speed;
+  // Wave 0: lane 2 (index 1) enemies are 2x faster to ensure cannon destruction
+  const finalSpeed = (wave === 0 && lane === 1) ? speed * 2 : speed;
 
   enemies.push({
     lane: lane,
