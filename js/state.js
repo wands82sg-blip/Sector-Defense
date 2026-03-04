@@ -9,13 +9,21 @@ let maxCombo = 0;
 let totalKills = 0;
 let totalParries = 0;
 let totalShockwaveKills = 0;
+let totalBlastKills = 0;
 let screenShake = { x: 0, y: 0, intensity: 0, decay: 0.9 };
 let slowMo = { active: false, factor: 1, timer: 0 };
 let flashEffect = { active: false, alpha: 0, color: '#fff' };
 
 // First-death tutorial system
 let firstDeathEver = true; // tracks across the entire session (not reset per game)
-let laneFreeze = { active: false, lane: -1, timer: 0, maxTime: 1.8, waitingForParryEntry: false };
+let laneFreeze = { active: false, lane: -1, timer: 0, maxTime: 60, waitingForParryEntry: false };
+
+// Wave 0 tutorial: teach fire → cannon destroyed → teach parry
+let tutorial = {
+  active: false,
+  hintLane: -1,      // lane showing "TAP TO FIRE" hint
+  killCount: 0       // kills during fire-teaching phase
+};
 
 // Entity arrays
 let sectors = [];
@@ -24,6 +32,7 @@ let enemies = [];
 let particles = [];
 let floatingTexts = [];
 let shockwaves = [];
+let destructionBlasts = [];
 
 // Spawn control
 let spawnTimer = 0;
@@ -54,6 +63,7 @@ function initSectors() {
       shieldFlash: 0,
       cannonRecoil: 0,
       destroyed: false,
+      disabled: false,
       rebuildFlash: 0,
       muzzleFlash: 0
     });

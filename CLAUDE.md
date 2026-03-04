@@ -2,6 +2,10 @@
 
 This file gives Claude context about the Sector Defense project so it can assist effectively without re-reading the full GDD every session.
 
+## Workflow Rules
+
+- **Bump the version number on the splash screen (`index.html`) after every change request.** Increment the patch version (e.g. v0.4.1 → v0.4.2) for each set of changes committed. This ensures the deployed build is always identifiable.
+
 ## Project Summary
 
 Sector Defense is a mobile arcade defense game built for iOS/Android (19.5:9 aspect ratio). It is a web app (HTML/JS) using the Web Audio API with no external dependencies or build system. All audio is procedurally synthesized — no sample files.
@@ -53,7 +57,8 @@ js/
 
 ### Cannon Firing
 - Tap a sector → fire bullet upward at 0.9× screen height/sec
-- Each cannon: 5 starting ammo, 8 max cap
+- Each cannon: 5 starting ammo, 5 max cap
+- Every bullet hit (including non-lethal hits on heavy enemies) replenishes +1 ammo
 - Ammo bar shown below cannon (green when ≥ 3, red when ≤ 2)
 
 ### Two-Chance Survival
@@ -82,11 +87,11 @@ js/
 - Ammo refill: +1/wave (Waves 1–3), +2/wave (Waves 4–6), +2–3/wave (Wave 7+)
 
 ### First-Death Lane Freeze (Tutorial)
-- Triggers **once per session** on the very first cannon destruction
-- Freezes all enemies in that lane for **1.8 seconds**
+- Triggers on cannon destruction in Wave 0 (tutorial) and on the first-ever cannon destruction in later waves
+- Freezes **all enemies** (global freeze) until the player taps to parry or the timer expires
 - Visual: blue-tinted enemies, frost particles, countdown bar, pulsing "TAP HERE" arrow
 - Feels diegetic (looks like the explosion stunned enemies, not a tutorial popup)
-- Other three lanes continue unaffected — the game never pauses
+- Destruction blast in the freeze lane is suppressed so the parry target survives
 
 ### Scoring & Combo
 - Bullet kill: 10 pts + 2 per combo level (max +40)
@@ -162,7 +167,6 @@ All 10 sounds are synthesized from oscillators. No files. No imports.
 
 ## Future Features (Not Yet Implemented)
 
-- Ammo pickups from destroyed enemies
 - Critical shot (refund bullet for perfectly timed hits)
 - Cross-lane boss spanning 2 sectors
 - Adaptive procedural background music

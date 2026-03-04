@@ -100,21 +100,6 @@ function draw() {
         ctx.fillStyle = `rgba(68, 170, 255, ${0.5 + pulse * 0.3})`;
         ctx.fillRect(barX, barY, barW * freezeProgress, 3);
 
-        // Frozen enemy visual indicator - ice/stun particles
-        enemies.forEach(e => {
-          if (e.alive && e.lane === i && Math.random() < 0.15) {
-            particles.push({
-              x: e.x + (Math.random() - 0.5) * e.width,
-              y: e.y + (Math.random() - 0.5) * e.height,
-              vx: (Math.random() - 0.5) * 15,
-              vy: -Math.random() * 20,
-              life: 0.3 + Math.random() * 0.3,
-              maxLife: 0.6,
-              color: '#88ccff',
-              size: 1.5 + Math.random() * 2
-            });
-          }
-        });
       } else {
         // Normal TAP TO PARRY text
         ctx.fillStyle = 'rgba(68, 170, 255, 0.5)';
@@ -145,7 +130,8 @@ function draw() {
     ctx.translate(e.x, e.y);
 
     // Glow
-    const isFrozen = laneFreeze.active && e.lane === laneFreeze.lane;
+    // No blue tint on frozen enemies — keep normal appearance during freeze
+    const isFrozen = false;
     const glow = ctx.createRadialGradient(0, 0, 0, 0, 0, e.width * 0.8);
     if (isFrozen) {
       glow.addColorStop(0, 'rgba(100, 180, 255, 0.25)');
@@ -262,6 +248,69 @@ function draw() {
     ctx.restore();
   });
 
+  // Destruction blasts
+  destructionBlasts.forEach(db => {
+    if (!db.alive) return;
+    const dbX = db.x;
+    const dbY = db.y;
+    const halfW = db.width / 2;
+    const halfH = db.height / 2;
+
+    ctx.save();
+    ctx.globalAlpha = db.alpha;
+
+    // Outer fiery glow
+    const outerGlow = ctx.createRadialGradient(dbX, dbY, 0, dbX, dbY, halfW * 1.2);
+    outerGlow.addColorStop(0, 'rgba(255, 100, 50, 0.3)');
+    outerGlow.addColorStop(0.5, 'rgba(255, 60, 30, 0.12)');
+    outerGlow.addColorStop(1, 'rgba(255, 40, 20, 0)');
+    ctx.fillStyle = outerGlow;
+    ctx.fillRect(dbX - halfW * 1.3, dbY - halfH * 2.5, db.width * 1.3, db.height * 2.5);
+
+    // Main blast bar — fire band
+    const mainGrad = ctx.createLinearGradient(dbX - halfW, dbY, dbX + halfW, dbY);
+    mainGrad.addColorStop(0, 'rgba(255, 80, 30, 0)');
+    mainGrad.addColorStop(0.15, 'rgba(255, 100, 40, 0.6)');
+    mainGrad.addColorStop(0.3, 'rgba(255, 140, 50, 0.9)');
+    mainGrad.addColorStop(0.5, 'rgba(255, 200, 100, 1)');
+    mainGrad.addColorStop(0.7, 'rgba(255, 140, 50, 0.9)');
+    mainGrad.addColorStop(0.85, 'rgba(255, 100, 40, 0.6)');
+    mainGrad.addColorStop(1, 'rgba(255, 80, 30, 0)');
+    ctx.fillStyle = mainGrad;
+    ctx.fillRect(dbX - halfW, dbY - 4, db.width, 8);
+
+    // Bright core
+    const coreGrad = ctx.createLinearGradient(dbX - halfW * 0.6, dbY, dbX + halfW * 0.6, dbY);
+    coreGrad.addColorStop(0, 'rgba(255, 240, 200, 0)');
+    coreGrad.addColorStop(0.3, 'rgba(255, 240, 200, 0.8)');
+    coreGrad.addColorStop(0.5, 'rgba(255, 255, 255, 1)');
+    coreGrad.addColorStop(0.7, 'rgba(255, 240, 200, 0.8)');
+    coreGrad.addColorStop(1, 'rgba(255, 240, 200, 0)');
+    ctx.fillStyle = coreGrad;
+    ctx.fillRect(dbX - halfW * 0.6, dbY - 2, db.width * 0.6, 4);
+
+    // Leading edge arc
+    ctx.strokeStyle = `rgba(255, 180, 80, ${db.alpha * 0.7})`;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.ellipse(dbX, dbY - halfH * 0.3, halfW * 0.6, halfH * 0.5, 0, Math.PI, Math.PI * 2);
+    ctx.stroke();
+
+    // Trailing fire wisps
+    ctx.strokeStyle = `rgba(255, 80, 30, ${db.alpha * 0.3})`;
+    ctx.lineWidth = 1;
+    for (let i = 0; i < 3; i++) {
+      const trailY = dbY + 8 + i * 6;
+      const trailW = halfW * (0.7 - i * 0.15);
+      ctx.beginPath();
+      ctx.moveTo(dbX - trailW, trailY);
+      ctx.quadraticCurveTo(dbX, trailY + 3, dbX + trailW, trailY);
+      ctx.stroke();
+    }
+
+    ctx.restore();
+  });
+
   // Bullets
   bullets.forEach(b => {
     if (!b.alive) return;
@@ -279,7 +328,46 @@ function draw() {
     const cx = getSectorX(i);
     const cy = cannonY;
 
-    if (s.alive) {
+    if (s.disabled) {
+      // Disabled cannon — dim silhouette with X overlay
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.globalAlpha = 0.25;
+
+      // Cannon base (dimmed)
+      ctx.fillStyle = '#2a3a4a';
+      ctx.fillRect(-18, 5, 36, 12);
+      // Cannon barrel (dimmed)
+      ctx.fillStyle = '#4a5a6a';
+      ctx.fillRect(-6, -22, 12, 30);
+      // Cannon detail
+      ctx.fillStyle = '#5a7a8a';
+      ctx.fillRect(-10, 0, 20, 6);
+      // Cannon tip
+      ctx.fillStyle = '#6a8a9a';
+      ctx.fillRect(-8, -24, 16, 4);
+
+      ctx.globalAlpha = 1;
+
+      // Red X over the cannon
+      ctx.strokeStyle = 'rgba(255, 60, 60, 0.6)';
+      ctx.lineWidth = 3;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(-14, -18);
+      ctx.lineTo(14, 14);
+      ctx.moveTo(14, -18);
+      ctx.lineTo(-14, 14);
+      ctx.stroke();
+
+      // "LOCKED" label
+      ctx.fillStyle = 'rgba(255, 60, 60, 0.4)';
+      ctx.font = '8px "Share Tech Mono", monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText('LOCKED', 0, 28);
+
+      ctx.restore();
+    } else if (s.alive) {
       const recoilY = s.cannonRecoil > 0 ? s.cannonRecoil * 8 : 0;
 
       ctx.save();
@@ -341,6 +429,33 @@ function draw() {
     }
   });
 
+  // Tutorial: "TAP TO FIRE" hint on hintLane
+  if (tutorial.active) {
+    const hintX = getSectorX(tutorial.hintLane);
+    const hintY = cannonY - 50;
+    const pulse = Math.sin(Date.now() * 0.006) * 0.3 + 0.7;
+
+    // Glow behind text
+    const glow = ctx.createRadialGradient(hintX, hintY, 0, hintX, hintY, sw * 0.4);
+    glow.addColorStop(0, `rgba(255, 204, 68, ${pulse * 0.12})`);
+    glow.addColorStop(1, 'rgba(255, 204, 68, 0)');
+    ctx.fillStyle = glow;
+    ctx.fillRect(sw * tutorial.hintLane, hintY - 35, sw, 70);
+
+    // Bouncing arrow pointing down at cannon
+    const arrowBounce = Math.sin(Date.now() * 0.008) * 5;
+    ctx.fillStyle = `rgba(255, 204, 68, ${pulse})`;
+    ctx.font = 'bold 18px "Orbitron", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('▼', hintX, hintY + 20 + arrowBounce);
+
+    // "TAP TO FIRE" text
+    ctx.fillStyle = `rgba(255, 204, 68, ${pulse})`;
+    ctx.font = 'bold 11px "Orbitron", sans-serif';
+    ctx.fillText('TAP TO', hintX, hintY - 10);
+    ctx.fillText('FIRE', hintX, hintY + 3);
+  }
+
   // Particles
   particles.forEach(p => {
     const alpha = p.life / p.maxLife;
@@ -384,7 +499,7 @@ function draw() {
   ctx.fillStyle = '#667';
   ctx.font = '10px "Share Tech Mono", monospace';
   ctx.textAlign = 'left';
-  ctx.fillText(`WAVE ${wave}`, 12, 46);
+  ctx.fillText(wave === 0 ? 'TUTORIAL' : `WAVE ${wave}`, 12, 46);
 
   // Flash effect
   if (flashEffect.active && flashEffect.alpha > 0) {

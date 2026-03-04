@@ -10,6 +10,9 @@ function handleTap(clientX, clientY) {
 
   const sector = sectors[lane];
 
+  // Disabled lanes (tutorial) — ignore taps entirely
+  if (sector.disabled) return;
+
   if (sector.alive) {
     // Fire cannon
     if (sector.ammo > 0) {
