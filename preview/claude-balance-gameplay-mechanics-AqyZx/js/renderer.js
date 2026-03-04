@@ -404,6 +404,33 @@ function draw() {
     }
   });
 
+  // Tutorial: "TAP TO FIRE" hint on hintLane
+  if (tutorial.active && !tutorial.ammoReduced) {
+    const hintX = getSectorX(tutorial.hintLane);
+    const hintY = cannonY - 50;
+    const pulse = Math.sin(Date.now() * 0.006) * 0.3 + 0.7;
+
+    // Glow behind text
+    const glow = ctx.createRadialGradient(hintX, hintY, 0, hintX, hintY, sw * 0.4);
+    glow.addColorStop(0, `rgba(255, 204, 68, ${pulse * 0.12})`);
+    glow.addColorStop(1, 'rgba(255, 204, 68, 0)');
+    ctx.fillStyle = glow;
+    ctx.fillRect(sw * tutorial.hintLane, hintY - 35, sw, 70);
+
+    // Bouncing arrow pointing down at cannon
+    const arrowBounce = Math.sin(Date.now() * 0.008) * 5;
+    ctx.fillStyle = `rgba(255, 204, 68, ${pulse})`;
+    ctx.font = 'bold 18px "Orbitron", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('▼', hintX, hintY + 20 + arrowBounce);
+
+    // "TAP TO FIRE" text
+    ctx.fillStyle = `rgba(255, 204, 68, ${pulse})`;
+    ctx.font = 'bold 11px "Orbitron", sans-serif';
+    ctx.fillText('TAP TO', hintX, hintY - 10);
+    ctx.fillText('FIRE', hintX, hintY + 3);
+  }
+
   // Particles
   particles.forEach(p => {
     const alpha = p.life / p.maxLife;
