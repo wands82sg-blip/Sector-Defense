@@ -100,21 +100,23 @@ function draw() {
         ctx.fillStyle = `rgba(68, 170, 255, ${0.5 + pulse * 0.3})`;
         ctx.fillRect(barX, barY, barW * freezeProgress, 3);
 
-        // Frozen enemy visual indicator - ice/stun particles
-        enemies.forEach(e => {
-          if (e.alive && e.lane === i && Math.random() < 0.15) {
-            particles.push({
-              x: e.x + (Math.random() - 0.5) * e.width,
-              y: e.y + (Math.random() - 0.5) * e.height,
-              vx: (Math.random() - 0.5) * 15,
-              vy: -Math.random() * 20,
-              life: 0.3 + Math.random() * 0.3,
-              maxLife: 0.6,
-              color: '#88ccff',
-              size: 1.5 + Math.random() * 2
-            });
-          }
-        });
+        // Frozen enemy visual indicator - ice/stun particles (skip during wave 0 tutorial)
+        if (wave > 0) {
+          enemies.forEach(e => {
+            if (e.alive && e.lane === i && Math.random() < 0.15) {
+              particles.push({
+                x: e.x + (Math.random() - 0.5) * e.width,
+                y: e.y + (Math.random() - 0.5) * e.height,
+                vx: (Math.random() - 0.5) * 15,
+                vy: -Math.random() * 20,
+                life: 0.3 + Math.random() * 0.3,
+                maxLife: 0.6,
+                color: '#88ccff',
+                size: 1.5 + Math.random() * 2
+              });
+            }
+          });
+        }
       } else {
         // Normal TAP TO PARRY text
         ctx.fillStyle = 'rgba(68, 170, 255, 0.5)';
@@ -145,7 +147,8 @@ function draw() {
     ctx.translate(e.x, e.y);
 
     // Glow
-    const isFrozen = laneFreeze.active && e.lane === laneFreeze.lane;
+    // No blue tint during wave 0 tutorial
+    const isFrozen = wave > 0 && laneFreeze.active && e.lane === laneFreeze.lane;
     const glow = ctx.createRadialGradient(0, 0, 0, 0, 0, e.width * 0.8);
     if (isFrozen) {
       glow.addColorStop(0, 'rgba(100, 180, 255, 0.25)');
@@ -405,7 +408,7 @@ function draw() {
   });
 
   // Tutorial: "TAP TO FIRE" hint on hintLane
-  if (tutorial.active && !tutorial.ammoReduced) {
+  if (tutorial.active) {
     const hintX = getSectorX(tutorial.hintLane);
     const hintY = cannonY - 50;
     const pulse = Math.sin(Date.now() * 0.006) * 0.3 + 0.7;
@@ -474,7 +477,7 @@ function draw() {
   ctx.fillStyle = '#667';
   ctx.font = '10px "Share Tech Mono", monospace';
   ctx.textAlign = 'left';
-  ctx.fillText(`WAVE ${wave}`, 12, 46);
+  ctx.fillText(wave === 0 ? 'TUTORIAL' : `WAVE ${wave}`, 12, 46);
 
   // Flash effect
   if (flashEffect.active && flashEffect.alpha > 0) {

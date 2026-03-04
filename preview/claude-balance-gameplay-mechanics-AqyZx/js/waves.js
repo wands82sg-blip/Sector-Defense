@@ -14,27 +14,34 @@ function pickLane() {
 function buildWaveSpawnQueue() {
   waveSpawnQueue = [];
 
-  if (wave === 1) {
-    // Wave 1: TUTORIAL WAVE
-    // Phase 1: 2 enemies in hintLane teach the player to tap-to-fire
-    // Phase 2: after 2 kills, weakenLane's ammo is halved → 3 enemies overwhelm it
-    // Phase 3: cannon destroyed → existing parry tutorial (laneFreeze) kicks in
-    const startLane = Math.floor(Math.random() * 3); // 0, 1, or 2
-    pressureLanes = [startLane, startLane + 1];
+  if (wave === 0) {
+    // Wave 0: TUTORIAL — fixed lanes 0 and 1 only
+    // Phase 1: enemies in lane 0, "TAP TO FIRE" teaches the player to shoot
+    // Phase 2: lane 1 has 0 ammo → enemy destroys cannon
+    // Phase 3: next enemy enters parry zone → 60s freeze, "TAP HERE" teaches parry
+    pressureLanes = [0, 1];
 
     tutorial.active = true;
-    tutorial.hintLane = pressureLanes[0];
-    tutorial.weakenLane = pressureLanes[1];
+    tutorial.hintLane = 0;
     tutorial.killCount = 0;
-    tutorial.ammoReduced = false;
+
+    // 60-second freeze for parry tutorial
+    laneFreeze.maxTime = 60;
 
     waveSpawnQueue = [
-      // Phase 1: teach firing
-      pressureLanes[0], pressureLanes[0],
-      // Phase 2: overwhelm weakened lane (ammo=2 → kills 2, 3rd destroys cannon)
-      pressureLanes[1], pressureLanes[1], pressureLanes[1],
-      // Phase 3: parry target arrives after destruction blast clears
-      pressureLanes[1]
+      0, 0,   // Phase 1: teach firing in lane 1
+      1,      // Phase 2: this enemy destroys lane 2 cannon (0 ammo)
+      0,      // Spacer — gives blast time to clear
+      1       // Phase 3: parry target arrives after blast
+    ];
+  } else if (wave === 1) {
+    // Wave 1: Pick 2 adjacent lanes to pressure hard
+    const startLane = Math.floor(Math.random() * 3);
+    pressureLanes = [startLane, startLane + 1];
+    waveSpawnQueue = [
+      pressureLanes[0], pressureLanes[1],
+      (startLane + 2) % SECTOR_COUNT,
+      pressureLanes[0], pressureLanes[1], pressureLanes[0]
     ];
   } else if (wave === 2) {
     // Wave 2: Shift pressure to different lanes, slightly more enemies
@@ -109,49 +116,63 @@ function nextWave() {
   wave++;
   waveEnemiesSpawned = 0;
 
-  // Wave sizing: starts aggressive, scales steadily
-  if (wave <= 3) {
-    waveEnemies = 4 + wave * 2; // 6, 8, 10
+  if (wave === 0) {
+    // Tutorial wave: slow, few enemies, fixed lanes
+    waveEnemies = 5;
+    spawnInterval = 2.0;
+    enemySpeed = 0.10;
   } else {
-    waveEnemies = 8 + wave * 2; // 16, 18, 20...
+    // Restore normal freeze duration after tutorial
+    laneFreeze.maxTime = 1.8;
+
+    // Wave sizing: starts aggressive, scales steadily
+    if (wave <= 3) {
+      waveEnemies = 4 + wave * 2; // 6, 8, 10
+    } else {
+      waveEnemies = 8 + wave * 2; // 16, 18, 20...
+    }
+
+    // Spawn interval: tight from the start, gets relentless
+    spawnInterval = Math.max(0.35, 1.4 - wave * 0.1);
+
+    // Enemy speed: noticeable from wave 1, dangerous by wave 6
+    enemySpeed = Math.min(0.45, 0.15 + wave * 0.022);
   }
-
-  // Spawn interval: tight from the start, gets relentless
-  spawnInterval = Math.max(0.35, 1.4 - wave * 0.1);
-
-  // Enemy speed: noticeable from wave 1, dangerous by wave 6
-  enemySpeed = Math.min(0.45, 0.15 + wave * 0.022);
 
   // Build scripted spawn queue for early waves
   buildWaveSpawnQueue();
 
   // Ammo economy: stingy early, gradually more generous
-  // Wave 1-3: +1 ammo per wave (forces scarcity)
-  // Wave 4-6: +2 ammo per wave (slight relief)
-  // Wave 7+: +2-3 ammo per wave (scaled to enemy count)
-  sectors.forEach(s => {
-    if (s.alive) {
-      let refill;
-      if (wave <= 3) {
-        refill = 1;
-      } else if (wave <= 6) {
-        refill = 2;
-      } else {
-        refill = 2 + Math.floor(wave / 5);
+  if (wave >= 1) {
+    sectors.forEach(s => {
+      if (s.alive) {
+        let refill;
+        if (wave <= 3) {
+          refill = 1;
+        } else if (wave <= 6) {
+          refill = 2;
+        } else {
+          refill = 2 + Math.floor(wave / 5);
+        }
+        s.ammo = Math.min(MAX_AMMO_CAP, s.ammo + refill);
       }
-      s.ammo = Math.min(MAX_AMMO_CAP, s.ammo + refill);
-    }
-  });
+    });
+  }
+
+  // Tutorial: lane 1 (index 1) starts with 0 ammo so enemy destroys cannon
+  if (wave === 0) {
+    sectors[1].ammo = 0;
+  }
 
   // floating wave text
   floatingTexts.push({
-    text: `WAVE ${wave}`,
+    text: wave === 0 ? 'TUTORIAL' : `WAVE ${wave}`,
     x: dims.w / 2,
     y: dims.h * 0.35,
     alpha: 1,
     scale: 1.5,
     life: 2.0,
-    color: '#ff3a3a',
+    color: wave === 0 ? '#44aaff' : '#ff3a3a',
     big: true
   });
 }

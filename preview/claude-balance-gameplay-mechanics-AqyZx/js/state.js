@@ -18,13 +18,11 @@ let flashEffect = { active: false, alpha: 0, color: '#fff' };
 let firstDeathEver = true; // tracks across the entire session (not reset per game)
 let laneFreeze = { active: false, lane: -1, timer: 0, maxTime: 1.8, waitingForParryEntry: false };
 
-// Wave 1 tutorial: teach fire → weaken turret → teach parry
+// Wave 0 tutorial: teach fire → cannon destroyed → teach parry
 let tutorial = {
   active: false,
   hintLane: -1,      // lane showing "TAP TO FIRE" hint
-  weakenLane: -1,    // lane that gets ammo reduced
-  killCount: 0,      // kills during fire-teaching phase
-  ammoReduced: false  // true once weakened lane's ammo is halved
+  killCount: 0       // kills during fire-teaching phase
 };
 
 // Entity arrays
