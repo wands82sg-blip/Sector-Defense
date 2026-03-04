@@ -42,23 +42,34 @@ function update(dt) {
     if (s.rebuildFlash > 0) s.rebuildFlash -= dt * 2;
   });
 
-  // Spawn enemies
-  spawnTimer -= adt;
-  if (spawnTimer <= 0 && waveEnemiesSpawned < waveEnemies) {
-    // Use scripted queue if available, otherwise dynamic spawning
-    if (waveSpawnQueue.length > 0) {
-      const forcedLane = waveSpawnQueue.shift();
-      spawnEnemy(forcedLane);
-    } else {
-      spawnEnemy();
+  // Wave transition pause
+  if (wavePause.active) {
+    wavePause.timer -= dt;
+    if (wavePause.timer <= 0) {
+      wavePause.active = false;
+      nextWave();
     }
-    waveEnemiesSpawned++;
-    spawnTimer = spawnInterval * (0.6 + Math.random() * 0.4);
-  }
+  } else {
+    // Spawn enemies (only when not paused between waves)
+    spawnTimer -= adt;
+    if (spawnTimer <= 0 && waveEnemiesSpawned < waveEnemies) {
+      // Use scripted queue if available, otherwise dynamic spawning
+      if (waveSpawnQueue.length > 0) {
+        const forcedLane = waveSpawnQueue.shift();
+        spawnEnemy(forcedLane);
+      } else {
+        spawnEnemy();
+      }
+      waveEnemiesSpawned++;
+      spawnTimer = spawnInterval * (0.6 + Math.random() * 0.4);
+    }
 
-  // Check wave complete
-  if (waveEnemiesSpawned >= waveEnemies && enemies.filter(e => e.alive).length === 0) {
-    nextWave();
+    // Check wave complete
+    if (waveEnemiesSpawned >= waveEnemies && enemies.filter(e => e.alive).length === 0) {
+      // All enemies cleared — start 2-second pause before next wave
+      wavePause.active = true;
+      wavePause.timer = 2.0;
+    }
   }
 
   // Update bullets
@@ -186,6 +197,12 @@ function update(dt) {
 
           let points = 10 + Math.min(combo, 20) * 2;
           score += points;
+
+          // Reward: +1 ammo on kill
+          const killerSector = sectors[b.lane];
+          if (killerSector && killerSector.alive) {
+            killerSector.ammo = Math.min(MAX_AMMO_CAP, killerSector.ammo + 1);
+          }
 
           audio.play('hit');
           if (combo > 0 && combo % 5 === 0) audio.play('combo');
