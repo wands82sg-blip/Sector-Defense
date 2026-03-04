@@ -425,6 +425,8 @@ function update(dt) {
     // Collision with enemies in same lane
     enemies.forEach(e => {
       if (!e.alive || e.lane !== db.lane) return;
+      // Don't let destruction blast kill the parry target
+      if (laneFreeze.waitingForParryEntry && e.lane === laneFreeze.lane) return;
       const dy = Math.abs(db.y - e.y);
       if (dy < db.height / 2 + e.height / 2 + 5) {
         e.alive = false;
