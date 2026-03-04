@@ -1,8 +1,7 @@
 // ============ GAME INITIALIZATION & LOOP ============
 
-function startGame() {
+function startGame(startWave) {
   score = 0;
-  wave = -1;
   combo = 0;
   maxCombo = 0;
   totalKills = 0;
@@ -28,6 +27,13 @@ function startGame() {
   wavePause = { active: false, timer: 0 };
   tutorial = { active: false, hintLane: -1, killCount: 0 };
   initSectors();
+
+  // Jump to requested wave (simulate progression for correct difficulty scaling)
+  const targetWave = startWave || 0;
+  wave = targetWave - 1;
+  if (targetWave > 0) {
+    firstDeathEver = false; // skip first-death tutorial when jumping ahead
+  }
   nextWave();
   gameState = 'playing';
 }
@@ -64,13 +70,17 @@ function gameLoop(timestamp) {
 // Button listeners
 document.getElementById('startBtn').addEventListener('click', () => {
   audio.init();
+  const waveInput = document.getElementById('waveInput');
+  const startWave = Math.max(0, parseInt(waveInput.value, 10) || 0);
   document.getElementById('startScreen').style.display = 'none';
-  startGame();
+  startGame(startWave);
 });
 
 document.getElementById('restartBtn').addEventListener('click', () => {
   document.getElementById('gameOverScreen').style.display = 'none';
-  startGame();
+  const waveInput = document.getElementById('waveInput');
+  const startWave = Math.max(0, parseInt(waveInput.value, 10) || 0);
+  startGame(startWave);
 });
 
 // Boot
