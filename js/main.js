@@ -23,6 +23,7 @@ function startGame() {
   screenShake = { x: 0, y: 0, intensity: 0, decay: 0.9 };
   slowMo = { active: false, factor: 1, timer: 0 };
   flashEffect = { active: false, alpha: 0, color: '#fff' };
+  firstDeathEver = true;
   laneFreeze = { active: false, lane: -1, timer: 0, maxTime: 60 };
   wavePause = { active: false, timer: 0 };
   tutorial = { active: false, hintLane: -1, killCount: 0 };
