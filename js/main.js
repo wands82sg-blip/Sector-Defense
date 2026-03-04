@@ -22,6 +22,7 @@ function startGame() {
   slowMo = { active: false, factor: 1, timer: 0 };
   flashEffect = { active: false, alpha: 0, color: '#fff' };
   laneFreeze = { active: false, lane: -1, timer: 0, maxTime: 1.8 };
+  wavePause = { active: false, timer: 0 };
   initSectors();
   nextWave();
   gameState = 'playing';

@@ -34,6 +34,9 @@ let waveSpawnQueue = [];
 let waveEnemies = 0;
 let waveEnemiesSpawned = 0;
 
+// Wave transition pause
+let wavePause = { active: false, timer: 0 };
+
 // Game loop timing
 let lastTime = 0;
 
