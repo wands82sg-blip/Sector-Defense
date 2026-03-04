@@ -214,6 +214,12 @@ function update(dt) {
         b.alive = false;
         e.hp--;
 
+        // Reward: +1 ammo on every hit (not just kills)
+        const killerSector = sectors[b.lane];
+        if (killerSector && killerSector.alive) {
+          killerSector.ammo = Math.min(MAX_AMMO_CAP, killerSector.ammo + 1);
+        }
+
         if (e.hp <= 0) {
           e.alive = false;
           totalKills++;
@@ -222,12 +228,6 @@ function update(dt) {
 
           let points = 10 + Math.min(combo, 20) * 2;
           score += points;
-
-          // Reward: +1 ammo on kill
-          const killerSector = sectors[b.lane];
-          if (killerSector && killerSector.alive) {
-            killerSector.ammo = Math.min(MAX_AMMO_CAP, killerSector.ammo + 1);
-          }
 
           audio.play('hit');
           if (combo > 0 && combo % 5 === 0) audio.play('combo');
