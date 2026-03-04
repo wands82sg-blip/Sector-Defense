@@ -16,7 +16,7 @@ let flashEffect = { active: false, alpha: 0, color: '#fff' };
 
 // First-death tutorial system
 let firstDeathEver = true; // tracks across the entire session (not reset per game)
-let laneFreeze = { active: false, lane: -1, timer: 0, maxTime: 1.8, waitingForParryEntry: false };
+let laneFreeze = { active: false, lane: -1, timer: 0, maxTime: 60, waitingForParryEntry: false };
 
 // Wave 0 tutorial: teach fire → cannon destroyed → teach parry
 let tutorial = {

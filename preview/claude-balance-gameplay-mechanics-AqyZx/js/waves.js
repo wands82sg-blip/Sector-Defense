@@ -25,9 +25,6 @@ function buildWaveSpawnQueue() {
     tutorial.hintLane = 0;
     tutorial.killCount = 0;
 
-    // 60-second freeze for parry tutorial
-    laneFreeze.maxTime = 60;
-
     waveSpawnQueue = [
       0, 0,   // Phase 1: teach firing in lane 1
       1,      // Phase 2: this enemy destroys lane 2 cannon (0 ammo)
@@ -122,9 +119,6 @@ function nextWave() {
     spawnInterval = 2.0;
     enemySpeed = 0.10;
   } else {
-    // Restore normal freeze duration after tutorial
-    laneFreeze.maxTime = 1.8;
-
     // Wave sizing: starts aggressive, scales steadily
     if (wave <= 3) {
       waveEnemies = 4 + wave * 2; // 6, 8, 10
