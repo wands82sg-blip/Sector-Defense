@@ -75,16 +75,13 @@ function spawnEnemy(forceLane) {
   const sw = getSectorWidth();
   const speed = enemySpeed * dims.h;
 
-  // Speed variance: some enemies slightly faster/slower for visual interest
-  const speedVariance = 0.85 + Math.random() * 0.3;
-
   enemies.push({
     lane: lane,
     x: getSectorX(lane),
     y: -30,
     width: sw * 0.45,
     height: sw * 0.35,
-    speed: speed * speedVariance,
+    speed: speed,
     alive: true,
     hitFlash: 0,
     hp: wave >= 6 ? (Math.random() < 0.15 + wave * 0.02 ? 2 : 1) : 1,
