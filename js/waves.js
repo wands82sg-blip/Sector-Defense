@@ -163,8 +163,9 @@ function nextWave() {
     sectors[2].disabled = true;
     sectors[3].disabled = true;
   } else {
-    // Re-enable all lanes when tutorial ends
+    // Re-enable all lanes and ensure tutorial is off
     sectors.forEach(s => { s.disabled = false; });
+    tutorial.active = false;
   }
 
   // floating wave text
