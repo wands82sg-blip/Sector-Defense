@@ -119,6 +119,28 @@ class AudioEngine {
         osc.start(now); osc.stop(now + 0.1);
         break;
       }
+      case 'destruction_blast': {
+        // Rising fiery whoosh — accompanies cannon explosion blast
+        const rumble = ctx.createOscillator();
+        const rumbleGain = ctx.createGain();
+        rumble.type = 'sawtooth';
+        rumble.frequency.setValueAtTime(60, now);
+        rumble.frequency.exponentialRampToValueAtTime(180, now + 0.35);
+        rumbleGain.gain.setValueAtTime(0.25, now);
+        rumbleGain.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+        rumble.connect(rumbleGain).connect(ctx.destination);
+        rumble.start(now); rumble.stop(now + 0.4);
+        const crackle2 = ctx.createOscillator();
+        const crackle2Gain = ctx.createGain();
+        crackle2.type = 'square';
+        crackle2.frequency.setValueAtTime(80, now);
+        crackle2.frequency.exponentialRampToValueAtTime(250, now + 0.3);
+        crackle2Gain.gain.setValueAtTime(0.08, now);
+        crackle2Gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+        crackle2.connect(crackle2Gain).connect(ctx.destination);
+        crackle2.start(now); crackle2.stop(now + 0.35);
+        break;
+      }
       case 'gameover': {
         [200, 150, 100, 60].forEach((f, i) => {
           const osc = ctx.createOscillator();
