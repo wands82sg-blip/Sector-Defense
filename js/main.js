@@ -8,11 +8,13 @@ function startGame() {
   totalKills = 0;
   totalParries = 0;
   totalShockwaveKills = 0;
+  totalBlastKills = 0;
   bullets = [];
   enemies = [];
   particles = [];
   floatingTexts = [];
   shockwaves = [];
+  destructionBlasts = [];
   spawnTimer = 0;
   spawnInterval = 1.4;
   enemySpeed = 0.15;
@@ -34,7 +36,7 @@ function gameOver() {
 
   document.getElementById('finalScore').textContent = score;
   document.getElementById('finalStats').textContent =
-    `WAVE ${wave} · ${totalKills} KILLS · ${totalParries} PARRIES · ${totalShockwaveKills} SWEPT · ${maxCombo}x COMBO`;
+    `WAVE ${wave} · ${totalKills} KILLS · ${totalParries} PARRIES · ${totalShockwaveKills + totalBlastKills} SWEPT · ${maxCombo}x COMBO`;
 
   setTimeout(() => {
     document.getElementById('gameOverScreen').style.display = 'flex';

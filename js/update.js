@@ -167,6 +167,21 @@ function update(dt) {
           alpha: 1, scale: 1, life: 1.5,
           color: '#ff3333', big: false
         });
+
+        // Destruction blast — sweeps upward to mid-screen, clearing trailing enemies
+        destructionBlasts.push({
+          lane: e.lane,
+          x: getSectorX(e.lane),
+          y: getCannonY(),
+          targetY: dims.h * 0.5,
+          speed: dims.h * 1.2,
+          width: getSectorWidth() * 0.75,
+          height: 35,
+          alive: true,
+          alpha: 1.0,
+          trailParticleTimer: 0
+        });
+        audio.play('destruction_blast');
       } else {
         // Cannon already destroyed - GAME OVER
         e.alive = false;
@@ -355,6 +370,80 @@ function update(dt) {
     }
   });
 
+  // Update destruction blasts
+  destructionBlasts.forEach(db => {
+    if (!db.alive) return;
+    db.y -= db.speed * adt;
+    db.alpha = Math.max(0.4, db.alpha - adt * 0.8);
+
+    // Fire trail particles
+    db.trailParticleTimer -= adt;
+    if (db.trailParticleTimer <= 0) {
+      db.trailParticleTimer = 0.02;
+      for (let side = -1; side <= 1; side += 2) {
+        particles.push({
+          x: db.x + side * db.width * 0.4 + (Math.random() - 0.5) * 10,
+          y: db.y + (Math.random() - 0.5) * db.height,
+          vx: side * (15 + Math.random() * 25),
+          vy: Math.random() * 40 + 20,
+          life: 0.25 + Math.random() * 0.2,
+          maxLife: 0.45,
+          color: Math.random() > 0.5 ? '#ff4444' : '#ff8844',
+          size: 1.5 + Math.random() * 2
+        });
+      }
+      particles.push({
+        x: db.x + (Math.random() - 0.5) * db.width * 0.5,
+        y: db.y,
+        vx: (Math.random() - 0.5) * 15,
+        vy: 25 + Math.random() * 25,
+        life: 0.2 + Math.random() * 0.15,
+        maxLife: 0.35,
+        color: '#ffaa44',
+        size: 1 + Math.random() * 2
+      });
+    }
+
+    // Collision with enemies in same lane
+    enemies.forEach(e => {
+      if (!e.alive || e.lane !== db.lane) return;
+      const dy = Math.abs(db.y - e.y);
+      if (dy < db.height / 2 + e.height / 2 + 5) {
+        e.alive = false;
+        totalKills++;
+        totalBlastKills++;
+        score += 5;
+        audio.play('shockwave_hit');
+        screenShake.intensity = Math.max(screenShake.intensity, 4);
+
+        for (let i = 0; i < 8; i++) {
+          const angle = Math.random() * Math.PI * 2;
+          particles.push({
+            x: e.x, y: e.y,
+            vx: Math.cos(angle) * (30 + Math.random() * 50),
+            vy: Math.sin(angle) * (30 + Math.random() * 50),
+            life: 0.25 + Math.random() * 0.25,
+            maxLife: 0.5,
+            color: Math.random() > 0.4 ? '#ff6644' : '#ffaa44',
+            size: 2 + Math.random() * 3
+          });
+        }
+
+        floatingTexts.push({
+          text: '+5',
+          x: e.x + (Math.random() - 0.5) * 15,
+          y: e.y,
+          alpha: 1, scale: 0.8, life: 0.7,
+          color: '#ff8844', big: false
+        });
+      }
+    });
+
+    if (db.y < db.targetY) {
+      db.alive = false;
+    }
+  });
+
   // Update particles
   particles.forEach(p => {
     p.x += p.vx * adt;
@@ -374,6 +463,7 @@ function update(dt) {
   bullets = bullets.filter(b => b.alive);
   enemies = enemies.filter(e => e.alive);
   shockwaves = shockwaves.filter(sw => sw.alive);
+  destructionBlasts = destructionBlasts.filter(db => db.alive);
   particles = particles.filter(p => p.life > 0);
   floatingTexts = floatingTexts.filter(ft => ft.life > 0);
 }

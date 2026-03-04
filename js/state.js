@@ -9,6 +9,7 @@ let maxCombo = 0;
 let totalKills = 0;
 let totalParries = 0;
 let totalShockwaveKills = 0;
+let totalBlastKills = 0;
 let screenShake = { x: 0, y: 0, intensity: 0, decay: 0.9 };
 let slowMo = { active: false, factor: 1, timer: 0 };
 let flashEffect = { active: false, alpha: 0, color: '#fff' };
@@ -24,6 +25,7 @@ let enemies = [];
 let particles = [];
 let floatingTexts = [];
 let shockwaves = [];
+let destructionBlasts = [];
 
 // Spawn control
 let spawnTimer = 0;
