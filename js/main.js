@@ -24,7 +24,7 @@ function startGame() {
   slowMo = { active: false, factor: 1, timer: 0 };
   flashEffect = { active: false, alpha: 0, color: '#fff' };
   firstDeathEver = true;
-  laneFreeze = { active: false, lane: -1, timer: 0, maxTime: 60 };
+  laneFreeze = { active: false, lane: -1, timer: 0, maxTime: 60, waitingForParryEntry: false };
   wavePause = { active: false, timer: 0 };
   tutorial = { active: false, hintLane: -1, killCount: 0 };
   initSectors();
