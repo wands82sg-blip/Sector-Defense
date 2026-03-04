@@ -97,7 +97,11 @@ function spawnEnemy(forceLane) {
   // Determine enemy type: weaver from wave 3+, 20% + 2%/wave chance
   let type = 'standard';
   if (wave >= 3 && Math.random() < 0.18 + wave * 0.02) {
-    type = 'weaver';
+    // Only allow one weaver per lane at a time
+    const hasWeaver = enemies.some(e => e.alive && e.type === 'weaver' && e.lane === lane);
+    if (!hasWeaver) {
+      type = 'weaver';
+    }
   }
 
   // Heavy enemies override type (heavy and weaver are mutually exclusive)
