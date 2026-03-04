@@ -2,7 +2,7 @@
 
 function startGame() {
   score = 0;
-  wave = 0;
+  wave = -1;
   combo = 0;
   maxCombo = 0;
   totalKills = 0;
@@ -25,7 +25,7 @@ function startGame() {
   flashEffect = { active: false, alpha: 0, color: '#fff' };
   laneFreeze = { active: false, lane: -1, timer: 0, maxTime: 1.8 };
   wavePause = { active: false, timer: 0 };
-  tutorial = { active: false, hintLane: -1, weakenLane: -1, killCount: 0, ammoReduced: false };
+  tutorial = { active: false, hintLane: -1, killCount: 0 };
   initSectors();
   nextWave();
   gameState = 'playing';
