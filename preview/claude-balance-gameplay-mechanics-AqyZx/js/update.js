@@ -141,9 +141,10 @@ function update(dt) {
         flashEffect.alpha = 0.5;
         flashEffect.color = '#ff2222';
 
-        // FIRST DEATH TUTORIAL: wait for an enemy to enter the parry window,
+        // TUTORIAL FREEZE: wait for an enemy to enter the parry window,
         // then freeze the entire game so the player has time to react.
-        if (firstDeathEver) {
+        // Wave 0 always freezes; later waves freeze only on first-ever death.
+        if (wave === 0 || firstDeathEver) {
           firstDeathEver = false;
           laneFreeze.lane = e.lane;
           laneFreeze.waitingForParryEntry = true;
