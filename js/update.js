@@ -66,9 +66,13 @@ function update(dt) {
 
     // Check wave complete
     if (waveEnemiesSpawned >= waveEnemies && enemies.filter(e => e.alive).length === 0) {
-      // All enemies cleared — start 2-second pause before next wave
-      wavePause.active = true;
-      wavePause.timer = 2.0;
+      // Wave 0: don't advance until player has completed the parry tutorial
+      if (wave === 0 && (laneFreeze.active || laneFreeze.waitingForParryEntry)) {
+        // Still waiting for parry — don't end the wave yet
+      } else {
+        wavePause.active = true;
+        wavePause.timer = 2.0;
+      }
     }
   }
 
