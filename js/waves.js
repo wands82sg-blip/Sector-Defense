@@ -94,6 +94,18 @@ function spawnEnemy(forceLane) {
   // Wave 0: lane 2 (index 1) enemies are 2x faster to ensure cannon destruction
   const finalSpeed = (wave === 0 && lane === 1) ? speed * 2 : speed;
 
+  // Determine enemy type: weaver from wave 3+, 20% + 2%/wave chance
+  let type = 'standard';
+  if (wave >= 3 && Math.random() < 0.18 + wave * 0.02) {
+    type = 'weaver';
+  }
+
+  // Heavy enemies override type (heavy and weaver are mutually exclusive)
+  let hp = 1;
+  if (wave >= 6 && type === 'standard' && Math.random() < 0.15 + wave * 0.02) {
+    hp = 2;
+  }
+
   enemies.push({
     lane: lane,
     x: getSectorX(lane),
@@ -103,13 +115,12 @@ function spawnEnemy(forceLane) {
     speed: finalSpeed,
     alive: true,
     hitFlash: 0,
-    hp: wave >= 6 ? (Math.random() < 0.15 + wave * 0.02 ? 2 : 1) : 1,
-    maxHp: 1
+    hp: hp,
+    maxHp: hp,
+    type: type,
+    weaverPhase: type === 'weaver' ? Math.random() * Math.PI * 2 : 0,
+    weaverAmplitude: type === 'weaver' ? sw * 0.35 : 0
   });
-
-  if (enemies[enemies.length-1].hp === 2) {
-    enemies[enemies.length-1].maxHp = 2;
-  }
 }
 
 function nextWave() {

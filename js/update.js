@@ -123,6 +123,11 @@ function update(dt) {
     const frozen = laneFreeze.active;
     if (!frozen) {
       e.y += e.speed * adt;
+
+      // Weaver: oscillate horizontally using sine wave keyed to y position
+      if (e.type === 'weaver') {
+        e.x = getSectorX(e.lane) + Math.sin(e.y * 0.018 + e.weaverPhase) * e.weaverAmplitude;
+      }
     }
     if (e.hitFlash > 0) e.hitFlash -= dt * 5;
 

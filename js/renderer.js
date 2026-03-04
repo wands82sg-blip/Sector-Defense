@@ -130,10 +130,13 @@ function draw() {
     ctx.translate(e.x, e.y);
 
     // Glow
-    // No blue tint on frozen enemies — keep normal appearance during freeze
+    const isWeaver = e.type === 'weaver';
     const isFrozen = false;
     const glow = ctx.createRadialGradient(0, 0, 0, 0, 0, e.width * 0.8);
-    if (isFrozen) {
+    if (isWeaver) {
+      glow.addColorStop(0, 'rgba(180, 80, 220, 0.2)');
+      glow.addColorStop(1, 'rgba(180, 80, 220, 0)');
+    } else if (isFrozen) {
       glow.addColorStop(0, 'rgba(100, 180, 255, 0.25)');
       glow.addColorStop(1, 'rgba(100, 180, 255, 0)');
     } else {
@@ -143,34 +146,61 @@ function draw() {
     ctx.fillStyle = glow;
     ctx.fillRect(-e.width, -e.width, e.width * 2, e.width * 2);
 
-    // Ship body — blue tint when frozen
+    // Ship body
     let shipColor;
     if (e.hitFlash > 0) {
       shipColor = '#fff';
+    } else if (isWeaver) {
+      shipColor = '#aa44cc';
     } else if (isFrozen) {
       shipColor = e.maxHp > 1 ? '#6688bb' : '#5577aa';
     } else {
       shipColor = e.maxHp > 1 ? '#ff6644' : '#cc3333';
     }
     ctx.fillStyle = shipColor;
-    ctx.beginPath();
-    ctx.moveTo(0, -e.height / 2);
-    ctx.lineTo(-e.width / 2, e.height / 2);
-    ctx.lineTo(-e.width / 4, e.height / 3);
-    ctx.lineTo(0, e.height / 2);
-    ctx.lineTo(e.width / 4, e.height / 3);
-    ctx.lineTo(e.width / 2, e.height / 2);
-    ctx.closePath();
-    ctx.fill();
 
-    // Ship detail
-    ctx.fillStyle = e.hitFlash > 0 ? '#fff' : (isFrozen ? '#7799cc' : '#ff8866');
-    ctx.beginPath();
-    ctx.moveTo(0, -e.height / 3);
-    ctx.lineTo(-e.width / 5, e.height / 5);
-    ctx.lineTo(e.width / 5, e.height / 5);
-    ctx.closePath();
-    ctx.fill();
+    if (isWeaver) {
+      // Weaver shape: sinuous, swept-back wings
+      ctx.beginPath();
+      ctx.moveTo(0, -e.height / 2);
+      ctx.quadraticCurveTo(-e.width * 0.3, -e.height * 0.1, -e.width / 2, e.height * 0.3);
+      ctx.lineTo(-e.width * 0.3, e.height * 0.15);
+      ctx.lineTo(0, e.height / 2);
+      ctx.lineTo(e.width * 0.3, e.height * 0.15);
+      ctx.lineTo(e.width / 2, e.height * 0.3);
+      ctx.quadraticCurveTo(e.width * 0.3, -e.height * 0.1, 0, -e.height / 2);
+      ctx.closePath();
+      ctx.fill();
+
+      // Weaver detail — glowing core
+      ctx.fillStyle = e.hitFlash > 0 ? '#fff' : '#cc77ee';
+      ctx.beginPath();
+      ctx.moveTo(0, -e.height / 3);
+      ctx.lineTo(-e.width / 5, e.height / 6);
+      ctx.lineTo(e.width / 5, e.height / 6);
+      ctx.closePath();
+      ctx.fill();
+    } else {
+      // Standard / heavy ship shape
+      ctx.beginPath();
+      ctx.moveTo(0, -e.height / 2);
+      ctx.lineTo(-e.width / 2, e.height / 2);
+      ctx.lineTo(-e.width / 4, e.height / 3);
+      ctx.lineTo(0, e.height / 2);
+      ctx.lineTo(e.width / 4, e.height / 3);
+      ctx.lineTo(e.width / 2, e.height / 2);
+      ctx.closePath();
+      ctx.fill();
+
+      // Ship detail
+      ctx.fillStyle = e.hitFlash > 0 ? '#fff' : (isFrozen ? '#7799cc' : '#ff8866');
+      ctx.beginPath();
+      ctx.moveTo(0, -e.height / 3);
+      ctx.lineTo(-e.width / 5, e.height / 5);
+      ctx.lineTo(e.width / 5, e.height / 5);
+      ctx.closePath();
+      ctx.fill();
+    }
 
     // HP bar for multi-hp enemies
     if (e.maxHp > 1) {
