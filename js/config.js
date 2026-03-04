@@ -6,7 +6,7 @@ const container = document.getElementById('gameContainer');
 // Constants
 const SECTOR_COUNT = 4;
 const INITIAL_AMMO = 5;
-const MAX_AMMO_CAP = 8;
+const MAX_AMMO_CAP = 5;
 const BULLET_SPEED_FACTOR = 0.9; // relative to height per second
 const PARRY_WINDOW = 0.6; // seconds
 const PARRY_ZONE_HEIGHT_FACTOR = 0.18;
