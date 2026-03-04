@@ -154,8 +154,14 @@ function nextWave() {
   }
 
   // Tutorial: lane 1 (index 1) starts with 0 ammo so enemy destroys cannon
+  // Lanes 2 & 3 are disabled (locked) during tutorial
   if (wave === 0) {
     sectors[1].ammo = 0;
+    sectors[2].disabled = true;
+    sectors[3].disabled = true;
+  } else {
+    // Re-enable all lanes when tutorial ends
+    sectors.forEach(s => { s.disabled = false; });
   }
 
   // floating wave text

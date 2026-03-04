@@ -63,6 +63,7 @@ function initSectors() {
       shieldFlash: 0,
       cannonRecoil: 0,
       destroyed: false,
+      disabled: false,
       rebuildFlash: 0,
       muzzleFlash: 0
     });

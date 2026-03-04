@@ -328,7 +328,46 @@ function draw() {
     const cx = getSectorX(i);
     const cy = cannonY;
 
-    if (s.alive) {
+    if (s.disabled) {
+      // Disabled cannon — dim silhouette with X overlay
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.globalAlpha = 0.25;
+
+      // Cannon base (dimmed)
+      ctx.fillStyle = '#2a3a4a';
+      ctx.fillRect(-18, 5, 36, 12);
+      // Cannon barrel (dimmed)
+      ctx.fillStyle = '#4a5a6a';
+      ctx.fillRect(-6, -22, 12, 30);
+      // Cannon detail
+      ctx.fillStyle = '#5a7a8a';
+      ctx.fillRect(-10, 0, 20, 6);
+      // Cannon tip
+      ctx.fillStyle = '#6a8a9a';
+      ctx.fillRect(-8, -24, 16, 4);
+
+      ctx.globalAlpha = 1;
+
+      // Red X over the cannon
+      ctx.strokeStyle = 'rgba(255, 60, 60, 0.6)';
+      ctx.lineWidth = 3;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(-14, -18);
+      ctx.lineTo(14, 14);
+      ctx.moveTo(14, -18);
+      ctx.lineTo(-14, 14);
+      ctx.stroke();
+
+      // "LOCKED" label
+      ctx.fillStyle = 'rgba(255, 60, 60, 0.4)';
+      ctx.font = '8px "Share Tech Mono", monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText('LOCKED', 0, 28);
+
+      ctx.restore();
+    } else if (s.alive) {
       const recoilY = s.cannonRecoil > 0 ? s.cannonRecoil * 8 : 0;
 
       ctx.save();
