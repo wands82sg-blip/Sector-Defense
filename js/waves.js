@@ -266,13 +266,13 @@ function nextWave() {
   } else if (wave <= 10) {
     // Formation waves (1-10): max speed, types set per-formation
     // waveEnemies is set by buildWaveSpawnQueue() for each formation
-    enemySpeed = 0.45;
+    enemySpeed = 0.6;
     spawnInterval = 0.5; // fallback only, formations use their own timing
   } else {
     // Dynamic waves (wave 11+)
     waveEnemies = 8 + wave * 2;
     spawnInterval = Math.max(0.35, 1.4 - wave * 0.1);
-    enemySpeed = Math.min(0.45, 0.15 + wave * 0.022);
+    enemySpeed = Math.min(0.6, 0.15 + wave * 0.022);
   }
 
   // Build scripted spawn queue for early waves
