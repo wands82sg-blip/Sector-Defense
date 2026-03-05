@@ -83,40 +83,30 @@ var F_HELIX = [
   {lanes:[1], delay:0.2}, {lanes:[2], delay:0}
 ];
 
-// F9: FORTRESS — heavy center anchors + flankers (built dynamically for heavy tags)
+// F9: FORTRESS — center pair then flanker pair (built dynamically)
 
 // F10: PENDULUM — swings edge-to-edge (direction alternates, built dynamically)
 
 // Build cascade queue: rapid 4-burst in one lane, lane rotates each cycle
-function buildCascadeQueue(times, gap, heavyFromCycle) {
+function buildCascadeQueue(times, gap) {
   const queue = [];
   for (let i = 0; i < times; i++) {
     const lane = i % SECTOR_COUNT;
-    const isHeavyCycle = (heavyFromCycle !== undefined && i >= heavyFromCycle);
     for (let j = 0; j < 4; j++) {
-      const entry = {lanes:[lane], delay: (j < 3) ? 0.12 : (i < times - 1 ? gap : 0)};
-      // Last enemy in burst is heavy (if enabled)
-      if (isHeavyCycle && j === 3) entry.heavy = [lane];
-      queue.push(entry);
+      queue.push({lanes:[lane], delay: (j < 3) ? 0.12 : (i < times - 1 ? gap : 0)});
     }
   }
   return queue;
 }
 
 // Build pendulum queue: swings 0→1→2→3 then 3→2→1→0 alternating
-function buildPendulumQueue(times, gap, mixTypes) {
+function buildPendulumQueue(times, gap) {
   const queue = [];
   for (let i = 0; i < times; i++) {
     const forward = (i % 2 === 0);
     const order = forward ? [0,1,2,3] : [3,2,1,0];
     order.forEach((lane, idx) => {
-      const entry = {lanes:[lane], delay: (idx < 3) ? 0.15 : (i < times - 1 ? gap : 0)};
-      if (mixTypes) {
-        // Alternate heavies and weavers across cycles
-        if (i % 3 === 0 && idx === 1) entry.heavy = [lane];
-        if (i % 3 === 1 && idx === 2) entry.weaver = [lane];
-      }
-      queue.push(entry);
+      queue.push({lanes:[lane], delay: (idx < 3) ? 0.15 : (i < times - 1 ? gap : 0)});
     });
   }
   return queue;
@@ -190,35 +180,31 @@ function buildWaveSpawnQueue() {
     waveEnemies = countQueueEnemies(waveSpawnQueue);
 
   } else if (wave === 7) {
-    // W7 — F7: CASCADE ×5 (introduces HEAVY enemies)
-    // Rapid 4-burst per lane, lane rotates. Last enemy in later bursts is heavy.
-    waveSpawnQueue = buildCascadeQueue(5, 0.5, 2);
+    // W7 — F7: CASCADE ×5
+    // Rapid 4-burst per lane, lane rotates each cycle
+    waveSpawnQueue = buildCascadeQueue(5, 0.5);
     waveEnemies = countQueueEnemies(waveSpawnQueue);
 
   } else if (wave === 8) {
-    // W8 — F8: HELIX ×5 (introduces WEAVERS)
-    // Two crossing spirals — weavers appear in the crossing paths
-    const helixWithWeavers = [
-      {lanes:[0], delay:0.2, weaver:[0]}, {lanes:[3], delay:0.2},
-      {lanes:[1], delay:0.2}, {lanes:[2], delay:0, weaver:[2]}
-    ];
-    waveSpawnQueue = repeatFormation(helixWithWeavers, 5, 0.5);
+    // W8 — F8: HELIX ×5
+    // Two crossing spirals — tests tracking two simultaneous paths
+    waveSpawnQueue = repeatFormation(F_HELIX, 5, 0.5);
     waveEnemies = countQueueEnemies(waveSpawnQueue);
 
   } else if (wave === 9) {
-    // W9 — F9: FORTRESS ×5 (heavies + weavers mixed)
-    // Heavy anchors in center, weaver flankers on edges
+    // W9 — F9: FORTRESS ×5
+    // Center pair then flanker pair — teaches inside-out defense
     const fortressCycle = [
-      {lanes:[1,2], delay:0.4, heavy:[1,2]},
-      {lanes:[0,3], delay:0, weaver:[0]}
+      {lanes:[1,2], delay:0.4},
+      {lanes:[0,3], delay:0}
     ];
     waveSpawnQueue = repeatFormation(fortressCycle, 5, 0.4);
     waveEnemies = countQueueEnemies(waveSpawnQueue);
 
   } else if (wave === 10) {
-    // W10 — F10: PENDULUM ×5 (all types — graduation wave)
-    // Swings 0→1→2→3→ then 3→2→1→0, with mixed heavies/weavers
-    waveSpawnQueue = buildPendulumQueue(5, 0.4, true);
+    // W10 — F10: PENDULUM ×5
+    // Swings 0→1→2→3 then 3→2→1→0 — sustained edge-to-edge tracking
+    waveSpawnQueue = buildPendulumQueue(5, 0.4);
     waveEnemies = countQueueEnemies(waveSpawnQueue);
 
   } else {
@@ -302,7 +288,7 @@ function nextWave() {
         } else if (wave <= 7) {
           refill = 2;       // mid formations — moderate
         } else if (wave <= 10) {
-          refill = 3;       // gauntlet formations — generous (heavies/weavers drain more)
+          refill = 3;       // gauntlet formations — generous (tighter gaps drain more)
         } else {
           refill = 2 + Math.floor(wave / 5); // dynamic waves — scaling
         }
@@ -327,7 +313,7 @@ function nextWave() {
   if (wave === 5) {
     worldTransform.milestone = { active: true, type: 'shimmer', timer: 0.8, duration: 0.8 };
   } else if (wave === 7) {
-    // Heavies introduced — visual shift
+    // Mid-formation intensity shift
     worldTransform.milestone = { active: true, type: 'deep_pulse', timer: 1.2, duration: 1.2 };
   } else if (wave === 10) {
     // Final formation wave — intensity peak
