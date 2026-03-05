@@ -2,8 +2,7 @@
 
 function pickLane() {
   // Early waves: use pressure lanes for uneven distribution
-  if (wave <= 4 && pressureLanes.length > 0) {
-    // 70% chance to spawn in a pressure lane
+  if (wave <= 12 && pressureLanes.length > 0) {
     if (Math.random() < 0.7) {
       return pressureLanes[Math.floor(Math.random() * pressureLanes.length)];
     }
@@ -11,20 +10,127 @@ function pickLane() {
   return Math.floor(Math.random() * SECTOR_COUNT);
 }
 
+// --- Formation helpers ---
+
+// Repeat a formation cycle N times with a gap between cycles
+function repeatFormation(cycle, times, gap) {
+  const queue = [];
+  for (let i = 0; i < times; i++) {
+    cycle.forEach((entry, idx) => {
+      const clone = {lanes: entry.lanes.slice(), delay: entry.delay};
+      if (entry.heavy) clone.heavy = entry.heavy.slice();
+      if (entry.weaver) clone.weaver = entry.weaver.slice();
+      // Last entry of each cycle: gap before next cycle (0 on final cycle)
+      if (idx === cycle.length - 1) {
+        clone.delay = (i < times - 1) ? gap : 0;
+      }
+      queue.push(clone);
+    });
+  }
+  return queue;
+}
+
+// Count total enemies in a spawn queue
+function countQueueEnemies(queue) {
+  let total = 0;
+  queue.forEach(entry => {
+    if (typeof entry === 'object' && entry.lanes) {
+      total += entry.lanes.length;
+    } else {
+      total++;
+    }
+  });
+  return total;
+}
+
+// --- Formation definitions ---
+// Each cycle is the minimal recognizable unit of the pattern (4 enemies each)
+
+// F1: DIAGONAL — L1→L2→L3→L4 sequential sweep
+var F_DIAGONAL = [
+  {lanes:[0], delay:0.2}, {lanes:[1], delay:0.2},
+  {lanes:[2], delay:0.2}, {lanes:[3], delay:0}
+];
+
+// F2: PINCER — outer pair closes to inner pair
+var F_PINCER = [
+  {lanes:[0,3], delay:0.25}, {lanes:[1,2], delay:0}
+];
+
+// F3: CHEVRON — center pair expands to outer pair (built dynamically for targeting)
+
+// F4: ZIGZAG — non-adjacent lane hops
+var F_ZIGZAG = [
+  {lanes:[0], delay:0.2}, {lanes:[2], delay:0.2},
+  {lanes:[1], delay:0.2}, {lanes:[3], delay:0}
+];
+
+// F5: BLITZ — all 4 lanes simultaneous
+var F_BLITZ = [
+  {lanes:[0,1,2,3], delay:0}
+];
+
+// F6: CROSSFIRE — non-adjacent pairs (checkerboard)
+var F_CROSSFIRE = [
+  {lanes:[0,2], delay:0.25}, {lanes:[1,3], delay:0}
+];
+
+// F7: CASCADE — rapid burst in one lane (lane rotates per cycle, built dynamically)
+
+// F8: HELIX — two crossing spirals (L1+L4 crossing to L2+L3)
+var F_HELIX = [
+  {lanes:[0], delay:0.2}, {lanes:[3], delay:0.2},
+  {lanes:[1], delay:0.2}, {lanes:[2], delay:0}
+];
+
+// F9: FORTRESS — heavy center anchors + flankers (built dynamically for heavy tags)
+
+// F10: PENDULUM — swings edge-to-edge (direction alternates, built dynamically)
+
+// Build cascade queue: rapid 4-burst in one lane, lane rotates each cycle
+function buildCascadeQueue(times, gap, heavyFromCycle) {
+  const queue = [];
+  for (let i = 0; i < times; i++) {
+    const lane = i % SECTOR_COUNT;
+    const isHeavyCycle = (heavyFromCycle !== undefined && i >= heavyFromCycle);
+    for (let j = 0; j < 4; j++) {
+      const entry = {lanes:[lane], delay: (j < 3) ? 0.12 : (i < times - 1 ? gap : 0)};
+      // Last enemy in burst is heavy (if enabled)
+      if (isHeavyCycle && j === 3) entry.heavy = [lane];
+      queue.push(entry);
+    }
+  }
+  return queue;
+}
+
+// Build pendulum queue: swings 0→1→2→3 then 3→2→1→0 alternating
+function buildPendulumQueue(times, gap, mixTypes) {
+  const queue = [];
+  for (let i = 0; i < times; i++) {
+    const forward = (i % 2 === 0);
+    const order = forward ? [0,1,2,3] : [3,2,1,0];
+    order.forEach((lane, idx) => {
+      const entry = {lanes:[lane], delay: (idx < 3) ? 0.15 : (i < times - 1 ? gap : 0)};
+      if (mixTypes) {
+        // Alternate heavies and weavers across cycles
+        if (i % 3 === 0 && idx === 1) entry.heavy = [lane];
+        if (i % 3 === 1 && idx === 2) entry.weaver = [lane];
+      }
+      queue.push(entry);
+    });
+  }
+  return queue;
+}
+
 function buildWaveSpawnQueue() {
   waveSpawnQueue = [];
 
   if (wave === 0) {
-    // Wave 0: TUTORIAL — fixed lanes 0 and 1 only
-    // Phase 1: enemies in lane 0, "TAP TO FIRE" teaches the player to shoot
-    // Phase 2: lane 1 has 0 ammo → enemy destroys cannon
-    // Phase 3: next enemy enters parry zone → 60s freeze, "TAP HERE" teaches parry
+    // Wave 0: TUTORIAL — unchanged
     pressureLanes = [0, 1];
-
     tutorial.active = true;
     tutorial.hintLane = 0;
     tutorial.killCount = 0;
-
     waveEnemies = 5;
     waveSpawnQueue = [
       0, 0,   // Phase 1: teach firing in lane 1
@@ -34,28 +140,19 @@ function buildWaveSpawnQueue() {
     ];
 
   } else if (wave === 1) {
-    // DIAGONAL: L1→L2→L3→L4 sweep, repeat
-    // Teaches sequential tapping — fingers chase the wave left to right
-    waveEnemies = 8;
-    waveSpawnQueue = [
-      {lanes:[0], delay:0.2}, {lanes:[1], delay:0.2},
-      {lanes:[2], delay:0.2}, {lanes:[3], delay:0.8},
-      {lanes:[0], delay:0.2}, {lanes:[1], delay:0.2},
-      {lanes:[2], delay:0.2}, {lanes:[3], delay:0}
-    ];
+    // W1 — F1: DIAGONAL ×5
+    // Teaches sequential L→R tapping
+    waveSpawnQueue = repeatFormation(F_DIAGONAL, 5, 0.8);
+    waveEnemies = countQueueEnemies(waveSpawnQueue);
 
   } else if (wave === 2) {
-    // PINCER: outer pair → inner pair, closing jaws
-    // Teaches splitting attention — outer then inner, forces eyes to center
-    waveEnemies = 8;
-    waveSpawnQueue = [
-      {lanes:[0,3], delay:0.25}, {lanes:[1,2], delay:0.6},
-      {lanes:[0,3], delay:0.25}, {lanes:[1,2], delay:0}
-    ];
+    // W2 — F2: PINCER ×5
+    // Teaches simultaneous outer→inner attention
+    waveSpawnQueue = repeatFormation(F_PINCER, 5, 0.8);
+    waveEnemies = countQueueEnemies(waveSpawnQueue);
 
   } else if (wave === 3) {
-    // CHEVRON: center-out pattern targeting weakest cannon
-    // Designed to overwhelm one lane and force the first cannon death
+    // W3 — F3: CHEVRON ×5 (targeting weakest cannon for designed death)
     let lowestAmmoLane = 0;
     let lowestAmmo = Infinity;
     sectors.forEach((s, i) => {
@@ -67,51 +164,71 @@ function buildWaveSpawnQueue() {
     const target = lowestAmmoLane;
     const adjacent = target <= 1 ? (1 - target) : (target === 2 ? 3 : 2);
     const others = [0,1,2,3].filter(l => l !== target && l !== adjacent);
-
-    waveEnemies = 10;
-    waveSpawnQueue = [
-      // Chevron: inner pair converges on target side
+    const chevronCycle = [
       {lanes:[target, adjacent], delay:0.3},
-      {lanes:[others[0], others[1]], delay:0.3},
-      // Second chevron pulse — drains target ammo
-      {lanes:[target, adjacent], delay:0.3},
-      // Extra solo hit on target — pressure builds
-      {lanes:[target], delay:0.5},
-      // Spacers in other lanes — give blast time to clear
-      {lanes:[others[0], others[1]], delay:0.5},
-      // Parry target — arrives after cannon death
-      {lanes:[target], delay:0}
+      {lanes:[others[0], others[1]], delay:0}
     ];
+    waveSpawnQueue = repeatFormation(chevronCycle, 5, 0.8);
+    waveEnemies = countQueueEnemies(waveSpawnQueue);
 
   } else if (wave === 4) {
-    // ZIGZAG: non-linear lane hopping, then reverses
-    // Teaches non-linear tracking — eyes can't just sweep, must jump
-    waveEnemies = 8;
-    waveSpawnQueue = [
-      {lanes:[0], delay:0.2}, {lanes:[2], delay:0.2},
-      {lanes:[1], delay:0.2}, {lanes:[3], delay:0.3},
-      {lanes:[3], delay:0.2}, {lanes:[1], delay:0.2},
-      {lanes:[2], delay:0.2}, {lanes:[0], delay:0}
-    ];
+    // W4 — F4: ZIGZAG ×5
+    // Teaches non-linear tracking — eyes must jump across lanes
+    waveSpawnQueue = repeatFormation(F_ZIGZAG, 5, 0.6);
+    waveEnemies = countQueueEnemies(waveSpawnQueue);
 
   } else if (wave === 5) {
-    // BLITZ: all 4 lanes simultaneous, decreasing gaps
-    // Teaches rapid full-width defense — graduation exam before dynamic waves
-    waveEnemies = 12;
-    waveSpawnQueue = [
-      {lanes:[0,1,2,3], delay:0.6},
-      {lanes:[0,1,2,3], delay:0.4},
-      {lanes:[0,1,2,3], delay:0}
+    // W5 — F5: BLITZ ×5
+    // All 4 lanes at once — tests full-width reaction
+    waveSpawnQueue = repeatFormation(F_BLITZ, 5, 0.6);
+    waveEnemies = countQueueEnemies(waveSpawnQueue);
+
+  } else if (wave === 6) {
+    // W6 — F6: CROSSFIRE ×5
+    // Non-adjacent pairs — diagonal attention, combines zigzag + pincer
+    waveSpawnQueue = repeatFormation(F_CROSSFIRE, 5, 0.6);
+    waveEnemies = countQueueEnemies(waveSpawnQueue);
+
+  } else if (wave === 7) {
+    // W7 — F7: CASCADE ×5 (introduces HEAVY enemies)
+    // Rapid 4-burst per lane, lane rotates. Last enemy in later bursts is heavy.
+    waveSpawnQueue = buildCascadeQueue(5, 0.5, 2);
+    waveEnemies = countQueueEnemies(waveSpawnQueue);
+
+  } else if (wave === 8) {
+    // W8 — F8: HELIX ×5 (introduces WEAVERS)
+    // Two crossing spirals — weavers appear in the crossing paths
+    const helixWithWeavers = [
+      {lanes:[0], delay:0.2, weaver:[0]}, {lanes:[3], delay:0.2},
+      {lanes:[1], delay:0.2}, {lanes:[2], delay:0, weaver:[2]}
     ];
+    waveSpawnQueue = repeatFormation(helixWithWeavers, 5, 0.5);
+    waveEnemies = countQueueEnemies(waveSpawnQueue);
+
+  } else if (wave === 9) {
+    // W9 — F9: FORTRESS ×5 (heavies + weavers mixed)
+    // Heavy anchors in center, weaver flankers on edges
+    const fortressCycle = [
+      {lanes:[1,2], delay:0.4, heavy:[1,2]},
+      {lanes:[0,3], delay:0, weaver:[0]}
+    ];
+    waveSpawnQueue = repeatFormation(fortressCycle, 5, 0.4);
+    waveEnemies = countQueueEnemies(waveSpawnQueue);
+
+  } else if (wave === 10) {
+    // W10 — F10: PENDULUM ×5 (all types — graduation wave)
+    // Swings 0→1→2→3→ then 3→2→1→0, with mixed heavies/weavers
+    waveSpawnQueue = buildPendulumQueue(5, 0.4, true);
+    waveEnemies = countQueueEnemies(waveSpawnQueue);
 
   } else {
-    // Wave 6+: no scripted queue, use dynamic lane pressure
+    // Wave 11+: dynamic spawning, no scripted queue
     pressureLanes = [];
     waveSpawnQueue = [];
   }
 }
 
-function spawnEnemy(forceLane) {
+function spawnEnemy(forceLane, forceType, forceHp) {
   const lane = forceLane !== undefined ? forceLane : pickLane();
   const sw = getSectorWidth();
   const speed = enemySpeed * dims.h;
@@ -119,19 +236,18 @@ function spawnEnemy(forceLane) {
   // Wave 0: lane 2 (index 1) enemies are 2x faster to ensure cannon destruction
   const finalSpeed = (wave === 0 && lane === 1) ? speed * 2 : speed;
 
-  // Determine enemy type: weaver from wave 6+ (waves 1-5 are formation waves, standard only)
-  let type = 'standard';
-  if (wave > 5 && Math.random() < 0.18 + wave * 0.02) {
-    // Only allow one weaver per lane at a time
+  // Determine type: use override from formation, or roll for dynamic waves (11+)
+  let type = forceType || 'standard';
+  if (!forceType && wave > 10 && Math.random() < 0.18 + wave * 0.02) {
     const hasWeaver = enemies.some(e => e.alive && e.type === 'weaver' && e.lane === lane);
     if (!hasWeaver) {
       type = 'weaver';
     }
   }
 
-  // Heavy enemies override type (heavy and weaver are mutually exclusive)
-  let hp = 1;
-  if (wave >= 6 && type === 'standard' && Math.random() < 0.15 + wave * 0.02) {
+  // Heavy: use override from formation, or roll for dynamic waves (11+)
+  let hp = forceHp || 1;
+  if (!forceHp && wave > 10 && type === 'standard' && Math.random() < 0.15 + wave * 0.02) {
     hp = 2;
   }
 
@@ -161,13 +277,13 @@ function nextWave() {
     waveEnemies = 5;
     spawnInterval = 2.0;
     enemySpeed = 0.10;
-  } else if (wave <= 5) {
-    // Formation waves: max speed, standard enemies only
+  } else if (wave <= 10) {
+    // Formation waves (1-10): max speed, types set per-formation
     // waveEnemies is set by buildWaveSpawnQueue() for each formation
     enemySpeed = 0.45;
     spawnInterval = 0.5; // fallback only, formations use their own timing
   } else {
-    // Dynamic waves (wave 6+)
+    // Dynamic waves (wave 11+)
     waveEnemies = 8 + wave * 2;
     spawnInterval = Math.max(0.35, 1.4 - wave * 0.1);
     enemySpeed = Math.min(0.45, 0.15 + wave * 0.022);
@@ -176,17 +292,19 @@ function nextWave() {
   // Build scripted spawn queue for early waves
   buildWaveSpawnQueue();
 
-  // Ammo economy: stingy early, gradually more generous
+  // Ammo economy: stingy early, generous later to match longer formation phase
   if (wave >= 1) {
     sectors.forEach(s => {
       if (s.alive) {
         let refill;
         if (wave <= 3) {
-          refill = 1;
-        } else if (wave <= 6) {
-          refill = 2;
+          refill = 1;       // teaching phase — tight ammo
+        } else if (wave <= 7) {
+          refill = 2;       // mid formations — moderate
+        } else if (wave <= 10) {
+          refill = 3;       // gauntlet formations — generous (heavies/weavers drain more)
         } else {
-          refill = 2 + Math.floor(wave / 5);
+          refill = 2 + Math.floor(wave / 5); // dynamic waves — scaling
         }
         s.ammo = Math.min(MAX_AMMO_CAP, s.ammo + refill);
       }
@@ -208,9 +326,11 @@ function nextWave() {
   // World transform: milestone triggers
   if (wave === 5) {
     worldTransform.milestone = { active: true, type: 'shimmer', timer: 0.8, duration: 0.8 };
-  } else if (wave === 10) {
+  } else if (wave === 7) {
+    // Heavies introduced — visual shift
     worldTransform.milestone = { active: true, type: 'deep_pulse', timer: 1.2, duration: 1.2 };
-  } else if (wave === 20) {
+  } else if (wave === 10) {
+    // Final formation wave — intensity peak
     worldTransform.milestone = { active: true, type: 'grid_surge', timer: 0.5, duration: 0.5 };
   }
 

@@ -56,8 +56,14 @@ function update(dt) {
       if (waveSpawnQueue.length > 0) {
         const entry = waveSpawnQueue.shift();
         if (typeof entry === 'object' && entry.lanes) {
-          // Formation spawn: multiple lanes simultaneously
-          entry.lanes.forEach(lane => spawnEnemy(lane));
+          // Formation spawn: multiple lanes with optional type overrides
+          entry.lanes.forEach(lane => {
+            let type = undefined;
+            let hp = undefined;
+            if (entry.heavy && entry.heavy.includes(lane)) { hp = 2; }
+            if (entry.weaver && entry.weaver.includes(lane)) { type = 'weaver'; }
+            spawnEnemy(lane, type, hp);
+          });
           waveEnemiesSpawned += entry.lanes.length;
           spawnTimer = entry.delay;
         } else {
@@ -67,7 +73,7 @@ function update(dt) {
           spawnTimer = spawnInterval * (0.6 + Math.random() * 0.4);
         }
       } else {
-        // Dynamic spawning (wave 6+)
+        // Dynamic spawning (wave 11+)
         spawnEnemy();
         waveEnemiesSpawned++;
         spawnTimer = spawnInterval * (0.6 + Math.random() * 0.4);
