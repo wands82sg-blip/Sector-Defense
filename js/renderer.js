@@ -9,18 +9,99 @@ function draw() {
   ctx.save();
   ctx.translate(screenShake.x, screenShake.y);
 
-  // Background
+  // === LAYER 1: Background atmosphere ===
+  const wt = worldTransform;
+  const phase = wt.phase;
+  const phaseIdx = Math.floor(phase);
+  const phaseFrac = phase - phaseIdx;
+  const p0 = WORLD_PHASES[Math.min(phaseIdx, WORLD_PHASES.length - 1)];
+  const p1 = WORLD_PHASES[Math.min(phaseIdx + 1, WORLD_PHASES.length - 1)];
+
+  function lerpColor(a, b, t) {
+    return [
+      Math.round(a[0] + (b[0] - a[0]) * t),
+      Math.round(a[1] + (b[1] - a[1]) * t),
+      Math.round(a[2] + (b[2] - a[2]) * t)
+    ];
+  }
+  const cTop = lerpColor(p0.top, p1.top, phaseFrac);
+  const cMid = lerpColor(p0.mid, p1.mid, phaseFrac);
+  const cBot = lerpColor(p0.bot, p1.bot, phaseFrac);
+
   const bgGrad = ctx.createLinearGradient(0, 0, 0, H);
-  bgGrad.addColorStop(0, '#06060e');
-  bgGrad.addColorStop(0.5, '#0a0a18');
-  bgGrad.addColorStop(1, '#0e0e20');
+  bgGrad.addColorStop(0, `rgb(${cTop[0]},${cTop[1]},${cTop[2]})`);
+  bgGrad.addColorStop(0.5, `rgb(${cMid[0]},${cMid[1]},${cMid[2]})`);
+  bgGrad.addColorStop(1, `rgb(${cBot[0]},${cBot[1]},${cBot[2]})`);
   ctx.fillStyle = bgGrad;
   ctx.fillRect(-10, -10, W + 20, H + 20);
 
-  // Grid lines (subtle)
-  ctx.strokeStyle = 'rgba(40, 40, 80, 0.3)';
+  // === LAYER 2: Star field ===
+  if (wave >= 3) {
+    const starVisibility = Math.min(1, (wave - 2) / 4); // fade in over waves 3-6
+    const now = Date.now();
+    wt.stars.forEach(s => {
+      const twinkle = 0.5 + 0.5 * Math.sin(now * 0.001 * s.twinkleSpeed + s.twinkleOffset);
+      const alpha = s.brightness * twinkle * starVisibility;
+      if (alpha < 0.05) return;
+      const sx = s.x * W;
+      // Parallax: stars drift downward slowly based on depth
+      const drift = wave >= 10 ? ((now * 0.003 * s.depth * 0.3) % H) : 0;
+      const sy = ((s.y * H) + drift) % H;
+      ctx.fillStyle = `rgba(200, 210, 255, ${alpha})`;
+      ctx.fillRect(sx, sy, s.size, s.size);
+    });
+
+    // Shooting stars (wave 15+)
+    wt.shootingStars.forEach(ss => {
+      if (ss.life <= 0) return;
+      const alpha = Math.min(1, ss.life * 3) * 0.6;
+      ctx.strokeStyle = `rgba(200, 220, 255, ${alpha})`;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(ss.x, ss.y);
+      ctx.lineTo(ss.x - ss.vx * 0.06, ss.y - ss.vy * 0.06);
+      ctx.stroke();
+    });
+  }
+
+  // === LAYER 4: Ambient background particles (wave 8+) ===
+  if (wave >= 8) {
+    wt.bgParticles.forEach(bp => {
+      if (bp.life <= 0) return;
+      const alpha = (bp.life / bp.maxLife) * bp.alpha;
+      ctx.fillStyle = `rgba(${bp.r}, ${bp.g}, ${bp.b}, ${alpha})`;
+      ctx.beginPath();
+      ctx.arc(bp.x, bp.y, bp.size, 0, Math.PI * 2);
+      ctx.fill();
+    });
+  }
+
+  // === LAYER 3: Grid evolution ===
+  const gridR = Math.round(p0.gridR + (p1.gridR - p0.gridR) * phaseFrac);
+  const gridG = Math.round(p0.gridG + (p1.gridG - p0.gridG) * phaseFrac);
+  const gridB = Math.round(p0.gridB + (p1.gridB - p0.gridB) * phaseFrac);
+  const gridBrightness = wave >= 5 ? Math.min(1, 0.3 + (wave - 4) * 0.05) : 0.3;
+
+  // Grid flicker (wave 17+): occasionally skip drawing a grid element
+  const flickering = wt.gridFlicker > 0;
+
+  // Vertical sector dividers
   ctx.lineWidth = 1;
   for (let i = 1; i < SECTOR_COUNT; i++) {
+    if (flickering && Math.random() < 0.3) continue;
+
+    // Energy glow on dividers (wave 13+)
+    if (wave >= 13) {
+      const glowAlpha = 0.08 + Math.sin(Date.now() * 0.002 + i) * 0.04;
+      const glowGrad = ctx.createLinearGradient(sw * i - 15, 0, sw * i + 15, 0);
+      glowGrad.addColorStop(0, `rgba(${gridR}, ${gridG}, ${gridB}, 0)`);
+      glowGrad.addColorStop(0.5, `rgba(${gridR}, ${gridG}, ${gridB}, ${glowAlpha})`);
+      glowGrad.addColorStop(1, `rgba(${gridR}, ${gridG}, ${gridB}, 0)`);
+      ctx.fillStyle = glowGrad;
+      ctx.fillRect(sw * i - 15, 0, 30, H);
+    }
+
+    ctx.strokeStyle = `rgba(${gridR}, ${gridG}, ${gridB}, ${gridBrightness})`;
     ctx.beginPath();
     ctx.setLineDash([4, 8]);
     ctx.moveTo(sw * i, 0);
@@ -29,13 +110,44 @@ function draw() {
   }
   ctx.setLineDash([]);
 
-  // Horizontal grid
+  // Horizontal grid with pulse (wave 9+)
   for (let y = 0; y < H; y += 60) {
-    ctx.strokeStyle = `rgba(30, 30, 60, ${0.1 + Math.sin(y * 0.01) * 0.05})`;
+    if (flickering && Math.random() < 0.15) continue;
+    let baseAlpha = 0.1 + Math.sin(y * 0.01) * 0.05;
+    if (wave >= 9) {
+      baseAlpha += Math.sin(wt.gridPulse + y * 0.005) * 0.04;
+    }
+    baseAlpha = Math.max(0, Math.min(0.25, baseAlpha));
+    const hGridR = Math.round(gridR * 0.75);
+    const hGridG = Math.round(gridG * 0.75);
+    const hGridB = Math.round(gridB * 0.75);
+    ctx.strokeStyle = `rgba(${hGridR}, ${hGridG}, ${hGridB}, ${baseAlpha})`;
     ctx.beginPath();
     ctx.moveTo(0, y);
     ctx.lineTo(W, y);
     ctx.stroke();
+  }
+
+  // === LAYER 5: Milestone overlay effects ===
+  if (wt.milestone.active && wt.milestone.timer > 0) {
+    const ms = wt.milestone;
+    const progress = ms.timer / ms.duration;
+    if (ms.type === 'shimmer') {
+      // Wave 5: subtle screen-wide shimmer
+      const shimmerAlpha = Math.sin(progress * Math.PI) * 0.08;
+      ctx.fillStyle = `rgba(150, 180, 255, ${shimmerAlpha})`;
+      ctx.fillRect(-10, -10, W + 20, H + 20);
+    } else if (ms.type === 'deep_pulse') {
+      // Wave 10: background briefly brightens
+      const pulseAlpha = Math.sin(progress * Math.PI) * 0.12;
+      ctx.fillStyle = `rgba(100, 60, 150, ${pulseAlpha})`;
+      ctx.fillRect(-10, -10, W + 20, H + 20);
+    } else if (ms.type === 'grid_surge') {
+      // Wave 20: grid power surge flash
+      const surgeAlpha = progress > 0.7 ? 0 : Math.sin((1 - progress) * Math.PI * 2) * 0.15;
+      ctx.fillStyle = `rgba(${gridR * 3}, ${gridG * 3}, ${gridB * 3}, ${surgeAlpha})`;
+      ctx.fillRect(-10, -10, W + 20, H + 20);
+    }
   }
 
   // Parry zones for destroyed cannons
@@ -130,10 +242,13 @@ function draw() {
     ctx.translate(e.x, e.y);
 
     // Glow
-    // No blue tint on frozen enemies — keep normal appearance during freeze
+    const isWeaver = e.type === 'weaver';
     const isFrozen = false;
     const glow = ctx.createRadialGradient(0, 0, 0, 0, 0, e.width * 0.8);
-    if (isFrozen) {
+    if (isWeaver) {
+      glow.addColorStop(0, 'rgba(180, 80, 220, 0.2)');
+      glow.addColorStop(1, 'rgba(180, 80, 220, 0)');
+    } else if (isFrozen) {
       glow.addColorStop(0, 'rgba(100, 180, 255, 0.25)');
       glow.addColorStop(1, 'rgba(100, 180, 255, 0)');
     } else {
@@ -143,34 +258,61 @@ function draw() {
     ctx.fillStyle = glow;
     ctx.fillRect(-e.width, -e.width, e.width * 2, e.width * 2);
 
-    // Ship body — blue tint when frozen
+    // Ship body
     let shipColor;
     if (e.hitFlash > 0) {
       shipColor = '#fff';
+    } else if (isWeaver) {
+      shipColor = '#aa44cc';
     } else if (isFrozen) {
       shipColor = e.maxHp > 1 ? '#6688bb' : '#5577aa';
     } else {
       shipColor = e.maxHp > 1 ? '#ff6644' : '#cc3333';
     }
     ctx.fillStyle = shipColor;
-    ctx.beginPath();
-    ctx.moveTo(0, -e.height / 2);
-    ctx.lineTo(-e.width / 2, e.height / 2);
-    ctx.lineTo(-e.width / 4, e.height / 3);
-    ctx.lineTo(0, e.height / 2);
-    ctx.lineTo(e.width / 4, e.height / 3);
-    ctx.lineTo(e.width / 2, e.height / 2);
-    ctx.closePath();
-    ctx.fill();
 
-    // Ship detail
-    ctx.fillStyle = e.hitFlash > 0 ? '#fff' : (isFrozen ? '#7799cc' : '#ff8866');
-    ctx.beginPath();
-    ctx.moveTo(0, -e.height / 3);
-    ctx.lineTo(-e.width / 5, e.height / 5);
-    ctx.lineTo(e.width / 5, e.height / 5);
-    ctx.closePath();
-    ctx.fill();
+    if (isWeaver) {
+      // Weaver shape: sinuous, swept-back wings
+      ctx.beginPath();
+      ctx.moveTo(0, -e.height / 2);
+      ctx.quadraticCurveTo(-e.width * 0.3, -e.height * 0.1, -e.width / 2, e.height * 0.3);
+      ctx.lineTo(-e.width * 0.3, e.height * 0.15);
+      ctx.lineTo(0, e.height / 2);
+      ctx.lineTo(e.width * 0.3, e.height * 0.15);
+      ctx.lineTo(e.width / 2, e.height * 0.3);
+      ctx.quadraticCurveTo(e.width * 0.3, -e.height * 0.1, 0, -e.height / 2);
+      ctx.closePath();
+      ctx.fill();
+
+      // Weaver detail — glowing core
+      ctx.fillStyle = e.hitFlash > 0 ? '#fff' : '#cc77ee';
+      ctx.beginPath();
+      ctx.moveTo(0, -e.height / 3);
+      ctx.lineTo(-e.width / 5, e.height / 6);
+      ctx.lineTo(e.width / 5, e.height / 6);
+      ctx.closePath();
+      ctx.fill();
+    } else {
+      // Standard / heavy ship shape
+      ctx.beginPath();
+      ctx.moveTo(0, -e.height / 2);
+      ctx.lineTo(-e.width / 2, e.height / 2);
+      ctx.lineTo(-e.width / 4, e.height / 3);
+      ctx.lineTo(0, e.height / 2);
+      ctx.lineTo(e.width / 4, e.height / 3);
+      ctx.lineTo(e.width / 2, e.height / 2);
+      ctx.closePath();
+      ctx.fill();
+
+      // Ship detail
+      ctx.fillStyle = e.hitFlash > 0 ? '#fff' : (isFrozen ? '#7799cc' : '#ff8866');
+      ctx.beginPath();
+      ctx.moveTo(0, -e.height / 3);
+      ctx.lineTo(-e.width / 5, e.height / 5);
+      ctx.lineTo(e.width / 5, e.height / 5);
+      ctx.closePath();
+      ctx.fill();
+    }
 
     // HP bar for multi-hp enemies
     if (e.maxHp > 1) {

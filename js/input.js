@@ -173,3 +173,20 @@ canvas.addEventListener('touchstart', (e) => {
   e.preventDefault();
   for (let t of e.touches) handleTap(t.clientX, t.clientY);
 }, { passive: false });
+
+// Keyboard support for desktop browsers
+const isDesktop = window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+if (isDesktop) {
+  const KEY_LANE_MAP = { 'z': 0, 'x': 1, 'n': 2, 'm': 3 };
+  window.addEventListener('keydown', (e) => {
+    const lane = KEY_LANE_MAP[e.key.toLowerCase()];
+    if (lane === undefined) return;
+    e.preventDefault();
+    // Simulate a tap at the center of the lane, at cannon height
+    const rect = canvas.getBoundingClientRect();
+    const sectorWidth = rect.width / SECTOR_COUNT;
+    const clientX = rect.left + sectorWidth * lane + sectorWidth / 2;
+    const clientY = rect.top + rect.height * 0.88;
+    handleTap(clientX, clientY);
+  });
+}
