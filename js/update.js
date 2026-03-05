@@ -53,15 +53,25 @@ function update(dt) {
     // Spawn enemies (only when not paused between waves)
     spawnTimer -= adt;
     if (spawnTimer <= 0 && waveEnemiesSpawned < waveEnemies) {
-      // Use scripted queue if available, otherwise dynamic spawning
       if (waveSpawnQueue.length > 0) {
-        const forcedLane = waveSpawnQueue.shift();
-        spawnEnemy(forcedLane);
+        const entry = waveSpawnQueue.shift();
+        if (typeof entry === 'object' && entry.lanes) {
+          // Formation spawn: multiple lanes simultaneously
+          entry.lanes.forEach(lane => spawnEnemy(lane));
+          waveEnemiesSpawned += entry.lanes.length;
+          spawnTimer = entry.delay;
+        } else {
+          // Single-lane spawn (wave 0 tutorial)
+          spawnEnemy(entry);
+          waveEnemiesSpawned++;
+          spawnTimer = spawnInterval * (0.6 + Math.random() * 0.4);
+        }
       } else {
+        // Dynamic spawning (wave 6+)
         spawnEnemy();
+        waveEnemiesSpawned++;
+        spawnTimer = spawnInterval * (0.6 + Math.random() * 0.4);
       }
-      waveEnemiesSpawned++;
-      spawnTimer = spawnInterval * (0.6 + Math.random() * 0.4);
     }
 
     // Check wave complete

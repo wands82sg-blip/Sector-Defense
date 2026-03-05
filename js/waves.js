@@ -25,35 +25,37 @@ function buildWaveSpawnQueue() {
     tutorial.hintLane = 0;
     tutorial.killCount = 0;
 
+    waveEnemies = 5;
     waveSpawnQueue = [
       0, 0,   // Phase 1: teach firing in lane 1
       1,      // Phase 2: this enemy destroys lane 2 cannon (0 ammo)
       0,      // Spacer — gives blast time to clear
       1       // Phase 3: parry target arrives after blast
     ];
+
   } else if (wave === 1) {
-    // Wave 1: Pick 2 adjacent lanes to pressure hard
-    const startLane = Math.floor(Math.random() * 3);
-    pressureLanes = [startLane, startLane + 1];
+    // DIAGONAL: L1→L2→L3→L4 sweep, repeat
+    // Teaches sequential tapping — fingers chase the wave left to right
+    waveEnemies = 8;
     waveSpawnQueue = [
-      pressureLanes[0], pressureLanes[1],
-      (startLane + 2) % SECTOR_COUNT,
-      pressureLanes[0], pressureLanes[1], pressureLanes[0]
+      {lanes:[0], delay:0.2}, {lanes:[1], delay:0.2},
+      {lanes:[2], delay:0.2}, {lanes:[3], delay:0.8},
+      {lanes:[0], delay:0.2}, {lanes:[1], delay:0.2},
+      {lanes:[2], delay:0.2}, {lanes:[3], delay:0}
     ];
+
   } else if (wave === 2) {
-    // Wave 2: Shift pressure to different lanes, slightly more enemies
-    // Pick lanes that WEREN'T pressured in wave 1 + one overlap
-    const newPrimary = (pressureLanes[1] + 1) % SECTOR_COUNT;
-    const newSecondary = (pressureLanes[1] + 2) % SECTOR_COUNT;
-    pressureLanes = [newPrimary, newSecondary];
-    // 8 enemies, heavily concentrated to force ammo depletion
+    // PINCER: outer pair → inner pair, closing jaws
+    // Teaches splitting attention — outer then inner, forces eyes to center
+    waveEnemies = 8;
     waveSpawnQueue = [
-      newPrimary, newPrimary, newSecondary, newPrimary,
-      newSecondary, newPrimary, newSecondary, newPrimary
+      {lanes:[0,3], delay:0.25}, {lanes:[1,2], delay:0.6},
+      {lanes:[0,3], delay:0.25}, {lanes:[1,2], delay:0}
     ];
+
   } else if (wave === 3) {
-    // Wave 3: THE DESIGNED OVERWHELM - one lane gets slammed to force first cannon death
-    // Pick the lane with lowest ammo to guarantee the death
+    // CHEVRON: center-out pattern targeting weakest cannon
+    // Designed to overwhelm one lane and force the first cannon death
     let lowestAmmoLane = 0;
     let lowestAmmo = Infinity;
     sectors.forEach((s, i) => {
@@ -62,25 +64,48 @@ function buildWaveSpawnQueue() {
         lowestAmmoLane = i;
       }
     });
-    pressureLanes = [lowestAmmoLane];
-    const otherLanes = [0,1,2,3].filter(l => l !== lowestAmmoLane);
-    // Key design: after the ammo-draining burst (first 3-4 in target lane),
-    // insert OTHER lane enemies as spacers before the kill shot + parry target.
-    // This guarantees the parry target arrives with a visible gap.
+    const target = lowestAmmoLane;
+    const adjacent = target <= 1 ? (1 - target) : (target === 2 ? 3 : 2);
+    const others = [0,1,2,3].filter(l => l !== target && l !== adjacent);
+
+    waveEnemies = 10;
     waveSpawnQueue = [
-      // Phase 1: Drain ammo (these will use up remaining bullets)
-      lowestAmmoLane, lowestAmmoLane, lowestAmmoLane,
-      // Phase 2: Spacers in other lanes (builds tension, gives cannon-kill time)
-      otherLanes[0], otherLanes[1],
-      // Phase 3: The kill shot - cannon has no ammo, this destroys it
-      lowestAmmoLane,
-      // Phase 4: MORE spacers - this is the critical gap for parry learning
-      otherLanes[2], otherLanes[0],
-      // Phase 5: The parry target - arrives well after cannon death
-      lowestAmmoLane
+      // Chevron: inner pair converges on target side
+      {lanes:[target, adjacent], delay:0.3},
+      {lanes:[others[0], others[1]], delay:0.3},
+      // Second chevron pulse — drains target ammo
+      {lanes:[target, adjacent], delay:0.3},
+      // Extra solo hit on target — pressure builds
+      {lanes:[target], delay:0.5},
+      // Spacers in other lanes — give blast time to clear
+      {lanes:[others[0], others[1]], delay:0.5},
+      // Parry target — arrives after cannon death
+      {lanes:[target], delay:0}
     ];
+
+  } else if (wave === 4) {
+    // ZIGZAG: non-linear lane hopping, then reverses
+    // Teaches non-linear tracking — eyes can't just sweep, must jump
+    waveEnemies = 8;
+    waveSpawnQueue = [
+      {lanes:[0], delay:0.2}, {lanes:[2], delay:0.2},
+      {lanes:[1], delay:0.2}, {lanes:[3], delay:0.3},
+      {lanes:[3], delay:0.2}, {lanes:[1], delay:0.2},
+      {lanes:[2], delay:0.2}, {lanes:[0], delay:0}
+    ];
+
+  } else if (wave === 5) {
+    // BLITZ: all 4 lanes simultaneous, decreasing gaps
+    // Teaches rapid full-width defense — graduation exam before dynamic waves
+    waveEnemies = 12;
+    waveSpawnQueue = [
+      {lanes:[0,1,2,3], delay:0.6},
+      {lanes:[0,1,2,3], delay:0.4},
+      {lanes:[0,1,2,3], delay:0}
+    ];
+
   } else {
-    // Wave 4+: no scripted queue, use dynamic lane pressure
+    // Wave 6+: no scripted queue, use dynamic lane pressure
     pressureLanes = [];
     waveSpawnQueue = [];
   }
@@ -94,9 +119,9 @@ function spawnEnemy(forceLane) {
   // Wave 0: lane 2 (index 1) enemies are 2x faster to ensure cannon destruction
   const finalSpeed = (wave === 0 && lane === 1) ? speed * 2 : speed;
 
-  // Determine enemy type: weaver from wave 3+, 20% + 2%/wave chance
+  // Determine enemy type: weaver from wave 6+ (waves 1-5 are formation waves, standard only)
   let type = 'standard';
-  if (wave >= 3 && Math.random() < 0.18 + wave * 0.02) {
+  if (wave > 5 && Math.random() < 0.18 + wave * 0.02) {
     // Only allow one weaver per lane at a time
     const hasWeaver = enemies.some(e => e.alive && e.type === 'weaver' && e.lane === lane);
     if (!hasWeaver) {
@@ -136,18 +161,15 @@ function nextWave() {
     waveEnemies = 5;
     spawnInterval = 2.0;
     enemySpeed = 0.10;
+  } else if (wave <= 5) {
+    // Formation waves: max speed, standard enemies only
+    // waveEnemies is set by buildWaveSpawnQueue() for each formation
+    enemySpeed = 0.45;
+    spawnInterval = 0.5; // fallback only, formations use their own timing
   } else {
-    // Wave sizing: starts aggressive, scales steadily
-    if (wave <= 3) {
-      waveEnemies = 4 + wave * 2; // 6, 8, 10
-    } else {
-      waveEnemies = 8 + wave * 2; // 16, 18, 20...
-    }
-
-    // Spawn interval: tight from the start, gets relentless
+    // Dynamic waves (wave 6+)
+    waveEnemies = 8 + wave * 2;
     spawnInterval = Math.max(0.35, 1.4 - wave * 0.1);
-
-    // Enemy speed: noticeable from wave 1, dangerous by wave 6
     enemySpeed = Math.min(0.45, 0.15 + wave * 0.022);
   }
 
