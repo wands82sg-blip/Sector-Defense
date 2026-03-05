@@ -484,6 +484,101 @@ function update(dt) {
     ft.alpha = Math.min(1, ft.life * 2);
   });
 
+  // === World transform updates (real time, not affected by slow-mo) ===
+  const wt = worldTransform;
+
+  // Smoothly lerp phase toward target
+  wt.targetPhase = getWorldPhaseForWave(wave);
+  if (wt.phase < wt.targetPhase) {
+    wt.phase = Math.min(wt.targetPhase, wt.phase + dt * 0.15);
+  } else if (wt.phase > wt.targetPhase) {
+    wt.phase = Math.max(wt.targetPhase, wt.phase - dt * 0.15);
+  }
+
+  // Grid pulse accumulator (wave 9+)
+  if (wave >= 9) {
+    wt.gridPulse += dt * 1.5;
+  }
+
+  // Grid flicker countdown (wave 17+)
+  if (wave >= 17) {
+    if (wt.gridFlicker <= 0 && Math.random() < dt * 0.3) {
+      wt.gridFlicker = 0.05 + Math.random() * 0.08; // brief flicker
+    }
+  }
+  if (wt.gridFlicker > 0) {
+    wt.gridFlicker -= dt;
+  }
+
+  // Shooting stars (wave 15+)
+  if (wave >= 15) {
+    // Spawn
+    if (Math.random() < dt * 0.15) {
+      wt.shootingStars.push({
+        x: Math.random() * dims.w,
+        y: Math.random() * dims.h * 0.5,
+        vx: 150 + Math.random() * 200,
+        vy: 80 + Math.random() * 120,
+        life: 0.4 + Math.random() * 0.4
+      });
+    }
+    // Update
+    wt.shootingStars.forEach(ss => {
+      ss.x += ss.vx * dt;
+      ss.y += ss.vy * dt;
+      ss.life -= dt;
+    });
+    wt.shootingStars = wt.shootingStars.filter(ss => ss.life > 0);
+  }
+
+  // Ambient background particles (wave 8+)
+  if (wave >= 8) {
+    const maxBgParticles = 50;
+    const density = Math.min(1, (wave - 7) / 8); // ramps up over waves 8-15
+    wt.bgParticleTimer -= dt;
+    if (wt.bgParticleTimer <= 0 && wt.bgParticles.length < maxBgParticles) {
+      wt.bgParticleTimer = 0.3 - density * 0.2; // 0.3s to 0.1s
+      // Color based on current phase
+      const phaseIdx = Math.min(Math.floor(wt.phase), WORLD_PHASES.length - 1);
+      const phaseName = WORLD_PHASES[phaseIdx].name;
+      let r, g, b;
+      if (phaseName === 'hostile' || phaseName === 'furnace') {
+        r = 200 + Math.random() * 55; g = 80 + Math.random() * 60; b = 30 + Math.random() * 40;
+      } else if (phaseName === 'abyss') {
+        r = 120 + Math.random() * 60; g = 60 + Math.random() * 40; b = 180 + Math.random() * 75;
+      } else {
+        r = 80 + Math.random() * 60; g = 120 + Math.random() * 60; b = 200 + Math.random() * 55;
+      }
+      // Lateral wisps (wave 16+) vs upward motes
+      const isWisp = wave >= 16 && Math.random() < 0.3;
+      wt.bgParticles.push({
+        x: Math.random() * dims.w,
+        y: isWisp ? Math.random() * dims.h : dims.h + 5,
+        vx: isWisp ? (30 + Math.random() * 40) * (Math.random() > 0.5 ? 1 : -1) : (Math.random() - 0.5) * 8,
+        vy: isWisp ? (Math.random() - 0.5) * 10 : -(8 + Math.random() * 15),
+        size: isWisp ? 1 + Math.random() * 2 : 0.5 + Math.random() * 1,
+        alpha: 0.15 + density * 0.15,
+        life: 3 + Math.random() * 4,
+        maxLife: 7,
+        r: Math.round(r), g: Math.round(g), b: Math.round(b)
+      });
+    }
+    wt.bgParticles.forEach(bp => {
+      bp.x += bp.vx * dt;
+      bp.y += bp.vy * dt;
+      bp.life -= dt;
+    });
+    wt.bgParticles = wt.bgParticles.filter(bp => bp.life > 0 && bp.y > -10 && bp.x > -20 && bp.x < dims.w + 20);
+  }
+
+  // Milestone effect timer
+  if (wt.milestone.active) {
+    wt.milestone.timer -= dt;
+    if (wt.milestone.timer <= 0) {
+      wt.milestone.active = false;
+    }
+  }
+
   // Cleanup
   bullets = bullets.filter(b => b.alive);
   enemies = enemies.filter(e => e.alive);

@@ -183,6 +183,23 @@ function nextWave() {
     tutorial.active = false;
   }
 
+  // World transform: milestone triggers
+  if (wave === 5) {
+    worldTransform.milestone = { active: true, type: 'shimmer', timer: 0.8, duration: 0.8 };
+  } else if (wave === 10) {
+    worldTransform.milestone = { active: true, type: 'deep_pulse', timer: 1.2, duration: 1.2 };
+  } else if (wave === 20) {
+    worldTransform.milestone = { active: true, type: 'grid_surge', timer: 0.5, duration: 0.5 };
+  }
+
+  // When jumping to a later wave, snap the world phase immediately
+  if (typeof worldTransform !== 'undefined') {
+    const targetPhase = getWorldPhaseForWave(wave);
+    if (wave > 1 && Math.abs(worldTransform.phase - targetPhase) > 1) {
+      worldTransform.phase = targetPhase; // snap, don't lerp
+    }
+  }
+
   // floating wave text
   floatingTexts.push({
     text: wave === 0 ? 'TUTORIAL' : `WAVE ${wave}`,
