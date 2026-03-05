@@ -27,6 +27,7 @@ function startGame(startWave) {
   wavePause = { active: false, timer: 0 };
   tutorial = { active: false, hintLane: -1, killCount: 0 };
   initSectors();
+  initWorldTransform();
 
   // Jump to requested wave
   const targetWave = (typeof startWave === 'number' && startWave > 0) ? startWave : 0;
