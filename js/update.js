@@ -62,6 +62,10 @@ function update(dt) {
             let hp = undefined;
             if (entry.heavy && entry.heavy.includes(lane)) { hp = 2; }
             if (entry.weaver && entry.weaver.includes(lane)) { type = 'weaver'; }
+            if (entry.sprinter && entry.sprinter.includes(lane)) { type = 'sprinter'; }
+            if (entry.splitter && entry.splitter.includes(lane)) { type = 'splitter'; }
+            if (entry.shielded && entry.shielded.includes(lane)) { type = 'shielded'; }
+            if (entry.switcher && entry.switcher.includes(lane)) { type = 'switcher'; }
             spawnEnemy(lane, type, hp);
           });
           waveEnemiesSpawned += entry.lanes.length;
@@ -143,6 +147,24 @@ function update(dt) {
       // Weaver: oscillate horizontally using sine wave keyed to y position
       if (e.type === 'weaver') {
         e.x = getSectorX(e.lane) + Math.sin(e.y * 0.018 + e.weaverPhase) * e.weaverAmplitude;
+      }
+
+      // Switcher: lane-switch at switchY with smoothstep ease
+      if (e.type === 'switcher' && !e.switched && e.switchLane >= 0 && e.y >= e.switchY) {
+        // Update lane to target at start of switch (for bullet collision)
+        if (e.switchProgress === 0) {
+          e.lane = e.switchLane;
+        }
+        e.switchProgress += adt * 3.3; // ~0.3s to complete
+        const t = Math.min(1, e.switchProgress);
+        const ease = t * t * (3 - 2 * t); // smoothstep
+        const originX = getSectorX(e.originLane);
+        const targetX = getSectorX(e.switchLane);
+        e.x = originX + (targetX - originX) * ease;
+        if (t >= 1) {
+          e.switched = true;
+          e.x = getSectorX(e.switchLane);
+        }
       }
     }
     if (e.hitFlash > 0) e.hitFlash -= dt * 5;
@@ -233,6 +255,29 @@ function update(dt) {
       const dy = Math.abs(b.y - e.y);
       if (dx < e.width / 2 + 4 && dy < e.height / 2 + 8) {
         b.alive = false;
+
+        // Shielded: first hit breaks shield, no HP damage, no ammo refund
+        if (e.shielded) {
+          e.shielded = false;
+          e.hitFlash = 1;
+          audio.play('shield_break');
+          screenShake.intensity = 4;
+          // Shield break particles
+          for (let i = 0; i < 8; i++) {
+            const angle = Math.random() * Math.PI * 2;
+            particles.push({
+              x: e.x, y: e.y - e.height * 0.3,
+              vx: Math.cos(angle) * (40 + Math.random() * 60),
+              vy: Math.sin(angle) * (40 + Math.random() * 60),
+              life: 0.3 + Math.random() * 0.3,
+              maxLife: 0.6,
+              color: Math.random() > 0.5 ? '#4488dd' : '#66aaff',
+              size: 2 + Math.random() * 3
+            });
+          }
+          return; // skip HP reduction, no ammo refund
+        }
+
         e.hp--;
 
         // Reward: +1 ammo on every hit (not just kills)
@@ -247,7 +292,7 @@ function update(dt) {
           combo++;
           if (combo > maxCombo) maxCombo = combo;
 
-          let points = 10 + Math.min(combo, 20) * 2;
+          let points = e.type === 'fragment' ? 5 : 10 + Math.min(combo, 20) * 2;
           score += points;
 
           audio.play('hit');
@@ -261,12 +306,43 @@ function update(dt) {
             }
           }
 
+          // Splitter: spawn 2 fragments on bullet kill
+          if (e.type === 'splitter') {
+            const offsetX = e.width * 0.3;
+            [-1, 1].forEach(side => {
+              const sw = getSectorWidth();
+              enemies.push({
+                lane: e.lane,
+                x: e.x + side * offsetX,
+                y: e.y,
+                width: sw * 0.27,
+                height: sw * 0.21,
+                speed: e.speed * 0.85,
+                alive: true,
+                hitFlash: 0,
+                hp: 1,
+                maxHp: 1,
+                type: 'fragment',
+                weaverPhase: 0,
+                weaverAmplitude: 0,
+                shielded: false,
+                originLane: e.lane,
+                switchLane: -1,
+                switchY: 0,
+                switched: false,
+                switchProgress: 0
+              });
+            });
+          }
+
           screenShake.intensity = 6;
           flashEffect.active = true;
           flashEffect.alpha = 0.2;
           flashEffect.color = '#ff6644';
 
           // Explosion
+          const explodeColor1 = e.type === 'splitter' ? '#ddaa33' : (e.type === 'sprinter' ? '#33ddaa' : '#ff6644');
+          const explodeColor2 = e.type === 'splitter' ? '#bb8822' : (e.type === 'sprinter' ? '#22aa88' : '#ffcc44');
           for (let i = 0; i < 12; i++) {
             const angle = Math.random() * Math.PI * 2;
             particles.push({
@@ -276,11 +352,12 @@ function update(dt) {
               vy: Math.sin(angle) * (30 + Math.random() * 80),
               life: 0.3 + Math.random() * 0.4,
               maxLife: 0.7,
-              color: Math.random() > 0.3 ? '#ff6644' : '#ffcc44',
+              color: Math.random() > 0.3 ? explodeColor1 : explodeColor2,
               size: 2 + Math.random() * 4
             });
           }
 
+          // Fragment kills are worth 5 pts, no combo text
           let comboText = combo >= 3 ? ` x${combo}` : '';
           floatingTexts.push({
             text: `+${points}${comboText}`,

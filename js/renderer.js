@@ -241,13 +241,26 @@ function draw() {
     ctx.save();
     ctx.translate(e.x, e.y);
 
-    // Glow
-    const isWeaver = e.type === 'weaver';
+    const eType = e.type;
     const isFrozen = false;
+
+    // Glow — per-type color
     const glow = ctx.createRadialGradient(0, 0, 0, 0, 0, e.width * 0.8);
-    if (isWeaver) {
+    if (eType === 'weaver') {
       glow.addColorStop(0, 'rgba(180, 80, 220, 0.2)');
       glow.addColorStop(1, 'rgba(180, 80, 220, 0)');
+    } else if (eType === 'sprinter') {
+      glow.addColorStop(0, 'rgba(50, 220, 170, 0.2)');
+      glow.addColorStop(1, 'rgba(50, 220, 170, 0)');
+    } else if (eType === 'splitter' || eType === 'fragment') {
+      glow.addColorStop(0, 'rgba(220, 170, 50, 0.2)');
+      glow.addColorStop(1, 'rgba(220, 170, 50, 0)');
+    } else if (eType === 'shielded') {
+      glow.addColorStop(0, e.shielded ? 'rgba(68, 136, 221, 0.25)' : 'rgba(255, 60, 60, 0.15)');
+      glow.addColorStop(1, e.shielded ? 'rgba(68, 136, 221, 0)' : 'rgba(255, 60, 60, 0)');
+    } else if (eType === 'switcher') {
+      glow.addColorStop(0, 'rgba(221, 68, 170, 0.2)');
+      glow.addColorStop(1, 'rgba(221, 68, 170, 0)');
     } else if (isFrozen) {
       glow.addColorStop(0, 'rgba(100, 180, 255, 0.25)');
       glow.addColorStop(1, 'rgba(100, 180, 255, 0)');
@@ -258,12 +271,22 @@ function draw() {
     ctx.fillStyle = glow;
     ctx.fillRect(-e.width, -e.width, e.width * 2, e.width * 2);
 
-    // Ship body
+    // Ship body color
     let shipColor;
     if (e.hitFlash > 0) {
       shipColor = '#fff';
-    } else if (isWeaver) {
+    } else if (eType === 'weaver') {
       shipColor = '#aa44cc';
+    } else if (eType === 'sprinter') {
+      shipColor = '#33ddaa';
+    } else if (eType === 'splitter') {
+      shipColor = '#ddaa33';
+    } else if (eType === 'fragment') {
+      shipColor = '#bb8822';
+    } else if (eType === 'shielded') {
+      shipColor = '#cc3333'; // body is standard red
+    } else if (eType === 'switcher') {
+      shipColor = '#dd44aa';
     } else if (isFrozen) {
       shipColor = e.maxHp > 1 ? '#6688bb' : '#5577aa';
     } else {
@@ -271,7 +294,9 @@ function draw() {
     }
     ctx.fillStyle = shipColor;
 
-    if (isWeaver) {
+    // --- Shape rendering per type ---
+
+    if (eType === 'weaver') {
       // Weaver shape: sinuous, swept-back wings
       ctx.beginPath();
       ctx.moveTo(0, -e.height / 2);
@@ -283,7 +308,6 @@ function draw() {
       ctx.quadraticCurveTo(e.width * 0.3, -e.height * 0.1, 0, -e.height / 2);
       ctx.closePath();
       ctx.fill();
-
       // Weaver detail — glowing core
       ctx.fillStyle = e.hitFlash > 0 ? '#fff' : '#cc77ee';
       ctx.beginPath();
@@ -292,8 +316,101 @@ function draw() {
       ctx.lineTo(e.width / 5, e.height / 6);
       ctx.closePath();
       ctx.fill();
+
+    } else if (eType === 'sprinter') {
+      // Sprinter shape: elongated narrow dart
+      ctx.beginPath();
+      ctx.moveTo(0, -e.height / 2); // sharp nose
+      ctx.lineTo(-e.width / 2, e.height * 0.35); // left fin
+      ctx.lineTo(-e.width * 0.15, e.height * 0.15); // body inset
+      ctx.lineTo(-e.width * 0.2, e.height / 2); // left tail
+      ctx.lineTo(0, e.height * 0.35); // tail center
+      ctx.lineTo(e.width * 0.2, e.height / 2); // right tail
+      ctx.lineTo(e.width * 0.15, e.height * 0.15); // body inset
+      ctx.lineTo(e.width / 2, e.height * 0.35); // right fin
+      ctx.closePath();
+      ctx.fill();
+      // Sprinter detail — speed stripe
+      ctx.fillStyle = e.hitFlash > 0 ? '#fff' : '#66ffcc';
+      ctx.beginPath();
+      ctx.moveTo(0, -e.height * 0.35);
+      ctx.lineTo(-e.width * 0.08, e.height * 0.2);
+      ctx.lineTo(e.width * 0.08, e.height * 0.2);
+      ctx.closePath();
+      ctx.fill();
+
+    } else if (eType === 'splitter') {
+      // Splitter shape: diamond/rhombus
+      ctx.beginPath();
+      ctx.moveTo(0, -e.height / 2); // top
+      ctx.lineTo(-e.width / 2, 0); // left
+      ctx.lineTo(0, e.height / 2); // bottom
+      ctx.lineTo(e.width / 2, 0); // right
+      ctx.closePath();
+      ctx.fill();
+      // Split line down the center
+      ctx.strokeStyle = e.hitFlash > 0 ? '#fff' : '#eedd66';
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([3, 3]);
+      ctx.beginPath();
+      ctx.moveTo(0, -e.height * 0.35);
+      ctx.lineTo(0, e.height * 0.35);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+    } else if (eType === 'fragment') {
+      // Fragment shape: half-diamond (smaller)
+      ctx.beginPath();
+      ctx.moveTo(0, -e.height / 2);
+      ctx.lineTo(-e.width / 2, 0);
+      ctx.lineTo(0, e.height / 2);
+      ctx.lineTo(e.width * 0.3, 0);
+      ctx.closePath();
+      ctx.fill();
+
+    } else if (eType === 'switcher') {
+      // Switcher shape: asymmetric chevron
+      const switchDir = e.switchLane > e.originLane ? 1 : -1;
+      const longWing = e.switched ? 0.5 : 0.6;
+      const shortWing = e.switched ? 0.5 : 0.35;
+      const leftWing = switchDir < 0 ? longWing : shortWing;
+      const rightWing = switchDir > 0 ? longWing : shortWing;
+      ctx.beginPath();
+      ctx.moveTo(0, -e.height / 2);
+      ctx.lineTo(-e.width * leftWing, e.height / 2);
+      ctx.lineTo(-e.width / 4, e.height / 3);
+      ctx.lineTo(0, e.height / 2);
+      ctx.lineTo(e.width / 4, e.height / 3);
+      ctx.lineTo(e.width * rightWing, e.height / 2);
+      ctx.closePath();
+      ctx.fill();
+      // Switcher detail
+      ctx.fillStyle = e.hitFlash > 0 ? '#fff' : '#ee77cc';
+      ctx.beginPath();
+      ctx.moveTo(0, -e.height / 3);
+      ctx.lineTo(-e.width / 5, e.height / 5);
+      ctx.lineTo(e.width / 5, e.height / 5);
+      ctx.closePath();
+      ctx.fill();
+
+      // Telegraph dotted line (before switch starts)
+      if (!e.switched && e.switchProgress === 0 && e.y > dims.h * 0.15 && e.y < dims.h * 0.35) {
+        ctx.save();
+        ctx.globalAlpha = 0.4;
+        ctx.strokeStyle = '#dd44aa';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([4, 6]);
+        const targetX = getSectorX(e.switchLane) - e.x;
+        ctx.beginPath();
+        ctx.moveTo(0, e.height);
+        ctx.lineTo(targetX, e.height + (e.switchY - e.y));
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.restore();
+      }
+
     } else {
-      // Standard / heavy ship shape
+      // Standard / heavy / shielded body shape
       ctx.beginPath();
       ctx.moveTo(0, -e.height / 2);
       ctx.lineTo(-e.width / 2, e.height / 2);
@@ -303,7 +420,6 @@ function draw() {
       ctx.lineTo(e.width / 2, e.height / 2);
       ctx.closePath();
       ctx.fill();
-
       // Ship detail
       ctx.fillStyle = e.hitFlash > 0 ? '#fff' : (isFrozen ? '#7799cc' : '#ff8866');
       ctx.beginPath();
@@ -312,6 +428,29 @@ function draw() {
       ctx.lineTo(e.width / 5, e.height / 5);
       ctx.closePath();
       ctx.fill();
+    }
+
+    // Shield overlay for shielded enemies
+    if (eType === 'shielded' && e.shielded) {
+      const shimmer = 0.6 + Math.sin(Date.now() * 0.008) * 0.15;
+      ctx.globalAlpha = shimmer;
+      ctx.fillStyle = '#4488dd';
+      ctx.strokeStyle = '#66aaff';
+      ctx.lineWidth = 1.5;
+      // Hexagonal shield
+      ctx.beginPath();
+      const shR = e.width * 0.45;
+      for (let i = 0; i < 6; i++) {
+        const a = Math.PI / 6 + i * Math.PI / 3;
+        const px = Math.cos(a) * shR;
+        const py = Math.sin(a) * shR - e.height * 0.15;
+        if (i === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      }
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      ctx.globalAlpha = 1;
     }
 
     // HP bar for multi-hp enemies

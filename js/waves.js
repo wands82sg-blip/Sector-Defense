@@ -20,6 +20,10 @@ function repeatFormation(cycle, times, gap) {
       const clone = {lanes: entry.lanes.slice(), delay: entry.delay};
       if (entry.heavy) clone.heavy = entry.heavy.slice();
       if (entry.weaver) clone.weaver = entry.weaver.slice();
+      if (entry.sprinter) clone.sprinter = entry.sprinter.slice();
+      if (entry.splitter) clone.splitter = entry.splitter.slice();
+      if (entry.shielded) clone.shielded = entry.shielded.slice();
+      if (entry.switcher) clone.switcher = entry.switcher.slice();
       // Last entry of each cycle: gap before next cycle (0 on final cycle)
       if (idx === cycle.length - 1) {
         clone.delay = (i < times - 1) ? gap : 0;
@@ -59,15 +63,15 @@ var F_PINCER = [
 
 // F3: CHEVRON — center pair expands to outer pair (built dynamically for targeting)
 
-// F4: ZIGZAG — non-adjacent lane hops
+// F4: ZIGZAG — non-adjacent lane hops (sprinters on first lane each cycle)
 var F_ZIGZAG = [
-  {lanes:[0], delay:0.2}, {lanes:[2], delay:0.2},
+  {lanes:[0], delay:0.2, sprinter:[0]}, {lanes:[2], delay:0.2},
   {lanes:[1], delay:0.2}, {lanes:[3], delay:0}
 ];
 
-// F5: BLITZ — all 4 lanes simultaneous
+// F5: BLITZ — all 4 lanes simultaneous (sprinters on inner lanes)
 var F_BLITZ = [
-  {lanes:[0,1,2,3], delay:0}
+  {lanes:[0,1,2,3], delay:0, sprinter:[1,2]}
 ];
 
 // F6: CROSSFIRE — non-adjacent pairs (checkerboard)
@@ -77,10 +81,10 @@ var F_CROSSFIRE = [
 
 // F7: CASCADE — rapid burst in one lane (lane rotates per cycle, built dynamically)
 
-// F8: HELIX — two crossing spirals (L1+L4 crossing to L2+L3)
+// F8: HELIX — two crossing spirals (shielded on outer lanes)
 var F_HELIX = [
-  {lanes:[0], delay:0.2}, {lanes:[3], delay:0.2},
-  {lanes:[1], delay:0.2}, {lanes:[2], delay:0}
+  {lanes:[0], delay:0.2, shielded:[0]}, {lanes:[3], delay:0.2},
+  {lanes:[1], delay:0.2}, {lanes:[2], delay:0, shielded:[2]}
 ];
 
 // F9: FORTRESS — center pair then flanker pair (built dynamically)
@@ -88,25 +92,37 @@ var F_HELIX = [
 // F10: PENDULUM — swings edge-to-edge (direction alternates, built dynamically)
 
 // Build cascade queue: rapid 4-burst in one lane, lane rotates each cycle
-function buildCascadeQueue(times, gap) {
+// First enemy of each cycle is a splitter (from wave 7+)
+function buildCascadeQueue(times, gap, useSplitters) {
   const queue = [];
   for (let i = 0; i < times; i++) {
     const lane = i % SECTOR_COUNT;
     for (let j = 0; j < 4; j++) {
-      queue.push({lanes:[lane], delay: (j < 3) ? 0.12 : (i < times - 1 ? gap : 0)});
+      const entry = {lanes:[lane], delay: (j < 3) ? 0.12 : (i < times - 1 ? gap : 0)};
+      if (useSplitters && j === 0) entry.splitter = [lane];
+      queue.push(entry);
     }
   }
   return queue;
 }
 
 // Build pendulum queue: swings 0→1→2→3 then 3→2→1→0 alternating
-function buildPendulumQueue(times, gap) {
+// Mix in new types on wave 10+
+function buildPendulumQueue(times, gap, mixTypes) {
   const queue = [];
+  // Type assignments per cycle: sprinter, shielded, switcher, splitter, standard
+  const typeMap = ['sprinter', 'shielded', 'switcher', 'splitter', null];
   for (let i = 0; i < times; i++) {
     const forward = (i % 2 === 0);
     const order = forward ? [0,1,2,3] : [3,2,1,0];
+    const cycleType = mixTypes ? typeMap[i % typeMap.length] : null;
     order.forEach((lane, idx) => {
-      queue.push({lanes:[lane], delay: (idx < 3) ? 0.15 : (i < times - 1 ? gap : 0)});
+      const entry = {lanes:[lane], delay: (idx < 3) ? 0.15 : (i < times - 1 ? gap : 0)};
+      // Apply type to first enemy of each swing
+      if (cycleType && idx === 0) {
+        entry[cycleType] = [lane];
+      }
+      queue.push(entry);
     });
   }
   return queue;
@@ -180,9 +196,9 @@ function buildWaveSpawnQueue() {
     waveEnemies = countQueueEnemies(waveSpawnQueue);
 
   } else if (wave === 7) {
-    // W7 — F7: CASCADE ×5
+    // W7 — F7: CASCADE ×5 (with splitters leading each burst)
     // Rapid 4-burst per lane, lane rotates each cycle
-    waveSpawnQueue = buildCascadeQueue(5, 0.5);
+    waveSpawnQueue = buildCascadeQueue(5, 0.5, true);
     waveEnemies = countQueueEnemies(waveSpawnQueue);
 
   } else if (wave === 8) {
@@ -192,19 +208,19 @@ function buildWaveSpawnQueue() {
     waveEnemies = countQueueEnemies(waveSpawnQueue);
 
   } else if (wave === 9) {
-    // W9 — F9: FORTRESS ×5
+    // W9 — F9: FORTRESS ×5 (switchers on center, splitters on flanks)
     // Center pair then flanker pair — teaches inside-out defense
     const fortressCycle = [
-      {lanes:[1,2], delay:0.4},
-      {lanes:[0,3], delay:0}
+      {lanes:[1,2], delay:0.4, switcher:[1]},
+      {lanes:[0,3], delay:0, splitter:[3]}
     ];
     waveSpawnQueue = repeatFormation(fortressCycle, 5, 0.4);
     waveEnemies = countQueueEnemies(waveSpawnQueue);
 
   } else if (wave === 10) {
-    // W10 — F10: PENDULUM ×5
+    // W10 — F10: PENDULUM ×5 (mix of all new types)
     // Swings 0→1→2→3 then 3→2→1→0 — sustained edge-to-edge tracking
-    waveSpawnQueue = buildPendulumQueue(5, 0.4);
+    waveSpawnQueue = buildPendulumQueue(5, 0.4, true);
     waveEnemies = countQueueEnemies(waveSpawnQueue);
 
   } else {
@@ -217,17 +233,27 @@ function buildWaveSpawnQueue() {
 function spawnEnemy(forceLane, forceType, forceHp) {
   const lane = forceLane !== undefined ? forceLane : pickLane();
   const sw = getSectorWidth();
-  const speed = enemySpeed * dims.h;
+  const variance = 0.85 + Math.random() * 0.30; // ±15% per-enemy speed variance
+  const speed = enemySpeed * dims.h * variance;
 
   // Wave 0: lane 2 (index 1) enemies are 2x faster to ensure cannon destruction
   const finalSpeed = (wave === 0 && lane === 1) ? speed * 2 : speed;
 
   // Determine type: use override from formation, or roll for dynamic waves (11+)
   let type = forceType || 'standard';
-  if (!forceType && wave > 10 && Math.random() < 0.18 + wave * 0.02) {
+  if (!forceType && wave > 10) {
+    // Priority chain: weaver > switcher > shielded > splitter > sprinter > standard
     const hasWeaver = enemies.some(e => e.alive && e.type === 'weaver' && e.lane === lane);
-    if (!hasWeaver) {
+    if (!hasWeaver && Math.random() < 0.18 + wave * 0.02) {
       type = 'weaver';
+    } else if (Math.random() < Math.min(0.18, 0.08 + wave * 0.01)) {
+      type = 'switcher';
+    } else if (Math.random() < Math.min(0.22, 0.08 + wave * 0.015)) {
+      type = 'shielded';
+    } else if (Math.random() < Math.min(0.25, 0.10 + wave * 0.01)) {
+      type = 'splitter';
+    } else if (Math.random() < Math.min(0.30, 0.12 + wave * 0.015)) {
+      type = 'sprinter';
     }
   }
 
@@ -237,20 +263,49 @@ function spawnEnemy(forceLane, forceType, forceHp) {
     hp = 2;
   }
 
+  // Speed multiplier for sprinters
+  const speedMult = type === 'sprinter' ? 1.8 : 1.0;
+
+  // Switcher lane setup
+  let switchLane = -1;
+  let switchY = 0;
+  if (type === 'switcher') {
+    // Pick adjacent lane
+    const adjacent = [];
+    if (lane > 0) adjacent.push(lane - 1);
+    if (lane < SECTOR_COUNT - 1) adjacent.push(lane + 1);
+    switchLane = adjacent[Math.floor(Math.random() * adjacent.length)];
+    switchY = dims.h * (0.4 + Math.random() * 0.2); // 40-60% of screen height
+  }
+
+  // Size adjustments per type
+  const widthFactor = type === 'sprinter' ? 0.3 : 0.45;
+  const heightFactor = type === 'sprinter' ? 0.5 : (type === 'fragment' ? 0.21 : 0.35);
+  const widthFactorFinal = type === 'fragment' ? 0.27 : widthFactor;
+
   enemies.push({
     lane: lane,
     x: getSectorX(lane),
     y: -30,
-    width: sw * 0.45,
-    height: sw * 0.35,
-    speed: finalSpeed,
+    width: sw * widthFactorFinal,
+    height: sw * heightFactor,
+    speed: finalSpeed * speedMult,
     alive: true,
     hitFlash: 0,
     hp: hp,
     maxHp: hp,
     type: type,
+    // Weaver properties
     weaverPhase: type === 'weaver' ? Math.random() * Math.PI * 2 : 0,
-    weaverAmplitude: type === 'weaver' ? sw * 0.35 : 0
+    weaverAmplitude: type === 'weaver' ? sw * 0.35 : 0,
+    // Shielded property
+    shielded: type === 'shielded',
+    // Switcher properties
+    originLane: lane,
+    switchLane: switchLane,
+    switchY: switchY,
+    switched: false,
+    switchProgress: 0
   });
 }
 
@@ -264,15 +319,15 @@ function nextWave() {
     spawnInterval = 2.0;
     enemySpeed = 0.10;
   } else if (wave <= 10) {
-    // Formation waves (1-10): max speed, types set per-formation
-    // waveEnemies is set by buildWaveSpawnQueue() for each formation
-    enemySpeed = 0.8;
+    // Formation waves (1-10): GDD speed progression
+    // Wave 1: 0.172, Wave 2: 0.194, ..., Wave 10: 0.370
+    enemySpeed = 0.172 + (wave - 1) * 0.022;
     spawnInterval = 0.5; // fallback only, formations use their own timing
   } else {
     // Dynamic waves (wave 11+)
     waveEnemies = 8 + wave * 2;
     spawnInterval = Math.max(0.35, 1.4 - wave * 0.1);
-    enemySpeed = Math.min(0.8, 0.15 + wave * 0.022);
+    enemySpeed = Math.min(0.45, 0.172 + (wave - 1) * 0.022);
   }
 
   // Build scripted spawn queue for early waves

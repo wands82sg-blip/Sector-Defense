@@ -226,6 +226,29 @@ class AudioEngine {
         pop.start(now); pop.stop(now + 0.15);
         break;
       }
+      case 'shield_break': {
+        // Metallic ping + glass shatter when shield breaks
+        const ping = ctx.createOscillator();
+        const pingGain = ctx.createGain();
+        ping.type = 'triangle';
+        ping.frequency.setValueAtTime(1000, now);
+        ping.frequency.exponentialRampToValueAtTime(400, now + 0.18);
+        pingGain.gain.setValueAtTime(0.3, now);
+        pingGain.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
+        ping.connect(pingGain).connect(ctx.destination);
+        ping.start(now); ping.stop(now + 0.18);
+        // Glass shatter texture
+        const shatter = ctx.createOscillator();
+        const shatterGain = ctx.createGain();
+        shatter.type = 'square';
+        shatter.frequency.setValueAtTime(1500, now);
+        shatter.frequency.exponentialRampToValueAtTime(200, now + 0.08);
+        shatterGain.gain.setValueAtTime(0.08, now);
+        shatterGain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+        shatter.connect(shatterGain).connect(ctx.destination);
+        shatter.start(now); shatter.stop(now + 0.08);
+        break;
+      }
     }
   }
 }
